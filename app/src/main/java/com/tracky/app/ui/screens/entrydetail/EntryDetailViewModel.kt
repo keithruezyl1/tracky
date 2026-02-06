@@ -104,7 +104,7 @@ class EntryDetailViewModel @Inject constructor(
                         matchedName = null,
                         quantity = quantity,
                         unit = unit,
-                        calories = 0,
+                        calories = 0f,
                         carbsG = 0f,
                         proteinG = 0f,
                         fatG = 0f,
@@ -117,7 +117,7 @@ class EntryDetailViewModel @Inject constructor(
                 val updatedItems = currentEntry.items + newItem
                 val updatedEntry = currentEntry.copy(
                     items = updatedItems,
-                    totalCalories = updatedItems.sumOf { it.calories },
+                    totalCalories = updatedItems.map { it.calories }.sum(),
                     totalCarbsG = updatedItems.sumOf { it.carbsG.toDouble() }.toFloat(),
                     totalProteinG = updatedItems.sumOf { it.proteinG.toDouble() }.toFloat(),
                     totalFatG = updatedItems.sumOf { it.fatG.toDouble() }.toFloat(),
@@ -135,49 +135,20 @@ class EntryDetailViewModel @Inject constructor(
     fun updateFoodEntry(entry: FoodEntry) {
         viewModelScope.launch {
             try {
-                // Reanalyze items if needed
-                val reanalyzedItems = mutableListOf<FoodItem>()
-                // Simple optimization: only re-resolve if content changed would require keeping track of original state precisely.
-                // For now, consistent with previous approach, we check differences. But simpler to just saving changes if passed.
-
-                // Logic: If the passed entry has changes, we should use it.
-                // The Caller (UI) modifies the entry. If we want to support re-resolution on edit, we need to know WHICH item changed.
-                // For this implementation, we assume basic property updates align with UI edits.
-                // If the user edits "Quantity" in the UI, we might want to trigger a re-calc of that item's macros.
+                // When user manually edits an entry (via Edit sheet), 
+                // we should preserve their changes as-is instead of re-resolving.
+                // Re-resolution is only for AI analysis updates, not manual edits.
                 
-                // Let's implement a smart update: Check each item against DB version. If Name/Qty/Unit diff -> Re-resolve.
-                val dbEntry = loggingRepository.getFoodEntryById(entry.id)
-                val dbItems = dbEntry?.items ?: emptyList()
-                
-                val finalItems = entry.items.mapIndexed { index, item ->
-                    val dbItem = dbItems.getOrNull(index) // Assuming order preserved
-                    if (dbItem == null || 
-                        dbItem.name != item.name || 
-                        dbItem.quantity != item.quantity || 
-                        dbItem.unit != item.unit) {
-                        // Changed or New -> Resolve
-                        val result = foodsRepository.resolveFood(item.name, item.quantity, item.unit)
-                        when (result) {
-                             is ResolvedFoodResult.Success -> result.foodItem.copy(id = item.id, displayOrder = index)
-                             else -> item.copy(displayOrder = index) // Keep user edit if resolve fails
-                        }
-                    } else {
-                        // No change, keep existing (preserving macros)
-                        item
-                    }
-                }
-
-                val reanalyzedEntry = entry.copy(
-                    items = finalItems,
-                    totalCalories = finalItems.sumOf { it.calories },
-                    totalCarbsG = finalItems.sumOf { it.carbsG.toDouble() }.toFloat(),
-                    totalProteinG = finalItems.sumOf { it.proteinG.toDouble() }.toFloat(),
-                    totalFatG = finalItems.sumOf { it.fatG.toDouble() }.toFloat(),
+                val updatedEntry = entry.copy(
+                    totalCalories = entry.items.map { it.calories }.sum(),
+                    totalCarbsG = entry.items.sumOf { it.carbsG.toDouble() }.toFloat(),
+                    totalProteinG = entry.items.sumOf { it.proteinG.toDouble() }.toFloat(),
+                    totalFatG = entry.items.sumOf { it.fatG.toDouble() }.toFloat(),
                     updatedAt = System.currentTimeMillis()
                 )
                 
-                loggingRepository.updateFoodEntry(reanalyzedEntry)
-                _uiState.update { it.copy(foodEntry = reanalyzedEntry) }
+                loggingRepository.updateFoodEntry(updatedEntry)
+                _uiState.update { it.copy(foodEntry = updatedEntry) }
 
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
@@ -197,7 +168,7 @@ class EntryDetailViewModel @Inject constructor(
                 } else {
                     val updatedEntry = currentEntry.copy(
                         items = updatedItems,
-                        totalCalories = updatedItems.sumOf { it.calories },
+                        totalCalories = updatedItems.map { it.calories }.sum(),
                         totalCarbsG = updatedItems.sumOf { it.carbsG.toDouble() }.toFloat(),
                         totalProteinG = updatedItems.sumOf { it.proteinG.toDouble() }.toFloat(),
                         totalFatG = updatedItems.sumOf { it.fatG.toDouble() }.toFloat(),
@@ -239,7 +210,7 @@ class EntryDetailViewModel @Inject constructor(
                             activityName = activityName,
                             durationMinutes = durationMinutes,
                             metValue = body.metValue ?: 0f,
-                            caloriesBurned = body.caloriesBurned ?: 0,
+                            caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
                             intensity = intensity,
                             provenance = Provenance(ProvenanceSource.DATASET, null, 1f),
                             displayOrder = currentEntry.items.size
@@ -251,7 +222,7 @@ class EntryDetailViewModel @Inject constructor(
                             activityName = activityName,
                             durationMinutes = durationMinutes,
                             metValue = 0f,
-                            caloriesBurned = 0,
+                            caloriesBurned = 0f,
                             intensity = intensity,
                             provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
                             displayOrder = currentEntry.items.size
@@ -263,7 +234,7 @@ class EntryDetailViewModel @Inject constructor(
                         activityName = activityName,
                         durationMinutes = durationMinutes,
                         metValue = 0f,
-                        caloriesBurned = 0,
+                        caloriesBurned = 0f,
                         intensity = intensity,
                         provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
                         displayOrder = currentEntry.items.size
@@ -273,7 +244,7 @@ class EntryDetailViewModel @Inject constructor(
                 val updatedItems = currentEntry.items + newItem
                 val updatedEntry = currentEntry.copy(
                     items = updatedItems,
-                    totalCalories = updatedItems.sumOf { it.caloriesBurned },
+                    totalCalories = updatedItems.map { it.caloriesBurned }.sum(),
                     totalDurationMinutes = updatedItems.sumOf { it.durationMinutes },
                     updatedAt = System.currentTimeMillis()
                 )
@@ -315,7 +286,7 @@ class EntryDetailViewModel @Inject constructor(
                                         val body = response.body()!!
                                         item.copy(
                                             id = item.id, // Keep ID if existing
-                                            caloriesBurned = body.caloriesBurned ?: item.caloriesBurned,
+                                            caloriesBurned = body.caloriesBurned?.toFloat() ?: item.caloriesBurned,
                                             metValue = body.metValue ?: item.metValue,
                                             displayOrder = index
                                         )
@@ -334,7 +305,7 @@ class EntryDetailViewModel @Inject constructor(
 
                 val reanalyzedEntry = entry.copy(
                     items = finalItems,
-                    totalCalories = finalItems.sumOf { it.caloriesBurned },
+                    totalCalories = finalItems.map { it.caloriesBurned }.sum(),
                     totalDurationMinutes = finalItems.sumOf { it.durationMinutes },
                     updatedAt = System.currentTimeMillis()
                 )
@@ -359,7 +330,7 @@ class EntryDetailViewModel @Inject constructor(
                 } else {
                     val updatedEntry = currentEntry.copy(
                         items = updatedItems,
-                        totalCalories = updatedItems.sumOf { it.caloriesBurned },
+                        totalCalories = updatedItems.map { it.caloriesBurned }.sum(),
                         totalDurationMinutes = updatedItems.sumOf { it.durationMinutes },
                         updatedAt = System.currentTimeMillis()
                     )
@@ -503,7 +474,7 @@ private data class SavedFoodItemJson(
     val name: String,
     val quantity: Float,
     val unit: String,
-    val calories: Int,
+    val calories: Float,
     val carbsG: Float,
     val proteinG: Float,
     val fatG: Float

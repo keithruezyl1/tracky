@@ -9,7 +9,7 @@ data class ExerciseEntry(
     val time: String,
     val timestamp: Long,
     val items: List<ExerciseItem>, // Changed from single activity fields to list
-    val totalCalories: Int,        // New field
+    val totalCalories: Float,        // New field
     val totalDurationMinutes: Int, // New field
     val userWeightKg: Float,
     val originalInput: String?,

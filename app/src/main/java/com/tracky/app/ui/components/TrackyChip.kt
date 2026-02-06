@@ -3,6 +3,7 @@ package com.tracky.app.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.FilterChip
@@ -82,7 +83,9 @@ fun TrackyChip(
             Text(
                 text = label,
                 style = if (compact) TrackyTypography.LabelSmall else TrackyTypography.BodyMedium,
-                color = labelColor
+                color = labelColor,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                // Removed fillMaxWidth modifier to prevent forced expansion
             )
         },
         modifier = modifier.height(

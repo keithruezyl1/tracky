@@ -1,5 +1,7 @@
 package com.tracky.app.ui.screens.home
 
+import com.tracky.app.ui.utils.toSmartString
+
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -304,7 +306,7 @@ fun HomeScreen(
                         val isToday = date == today
 
                         val dayStatus = weekSummaries[date]?.let { summary: DailySummary ->
-                            if (summary.foodCalories > (summary.goal?.calorieGoalKcal ?: currentGoal?.calorieGoalKcal ?: 2000)) {
+                            if (summary.foodCalories > (summary.goal?.calorieGoalKcal ?: currentGoal?.calorieGoalKcal ?: 2000f)) {
                                 DayStatus.FAILURE
                             } else if (summary.foodCalories > 0) {
                                 DayStatus.SUCCESS
@@ -361,9 +363,9 @@ fun HomeScreen(
                         val dayGoal = uiState.currentSummary?.goal
                         Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
                             CaloriesCard(
-                                foodCalories = uiState.currentSummary?.foodCalories ?: 0,
-                                exerciseCalories = uiState.currentSummary?.exerciseCalories ?: 0,
-                                goalCalories = dayGoal?.calorieGoalKcal ?: currentGoal?.calorieGoalKcal ?: 2000,
+                                foodCalories = uiState.currentSummary?.foodCalories ?: 0f,
+                                exerciseCalories = uiState.currentSummary?.exerciseCalories ?: 0f,
+                                goalCalories = dayGoal?.calorieGoalKcal ?: currentGoal?.calorieGoalKcal ?: 2000f,
                                 onEditGoals = onNavigateToGoals
                             )
                         }
@@ -663,9 +665,9 @@ private fun EditAnalysisSheet(
 
 @Composable
 private fun CaloriesCard(
-    foodCalories: Int,
-    exerciseCalories: Int,
-    goalCalories: Int,
+    foodCalories: Float,
+    exerciseCalories: Float,
+    goalCalories: Float,
     onEditGoals: () -> Unit
 ) {
     TrackyCard {
@@ -751,8 +753,8 @@ private fun FoodDraftCard(
                     .padding(vertical = TrackyTokens.Spacing.XXS),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                TrackyBodyText(text = "${item.quantity.toInt()} ${item.unit} ${item.name}")
-                TrackyBodySmall(text = "${item.calories} kcal")
+                TrackyBodyText(text = "${item.quantity.toSmartString()} ${item.unit} ${item.name}")
+                TrackyBodySmall(text = "${item.calories.toInt()} kcal")
             }
         }
 
@@ -764,7 +766,7 @@ private fun FoodDraftCard(
         ) {
             TrackyBodyText(text = "Total")
             TrackyBodyText(
-                text = "${draft.totalCalories} kcal",
+                text = "${draft.totalCalories.toInt()} kcal",
                 color = TrackyColors.BrandPrimary
             )
         }
@@ -821,7 +823,7 @@ private fun ExerciseDraftCard(
         ) {
             TrackyBodyText(text = "Total Burned")
             TrackyBodyText(
-                text = "${draft.totalCalories} kcal",
+                text = "${draft.totalCalories.toInt()} kcal",
                 color = TrackyColors.Success
             )
         }
@@ -878,7 +880,7 @@ private fun FoodEntryRow(
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
-                TrackyBodyText(text = "${entry.totalCalories} kcal")
+                TrackyBodyText(text = "${entry.totalCalories.toInt()} kcal")
                 TrackyBodySmall(
                     text = entry.time.take(5),
                     color = TrackyColors.TextTertiary
@@ -928,7 +930,7 @@ private fun ExerciseEntryRow(
             }
             Column(horizontalAlignment = Alignment.End) {
                 TrackyBodyText(
-                    text = "-${entry.totalCalories} kcal",
+                    text = "-${entry.totalCalories.toInt()} kcal",
                     color = TrackyColors.Success
                 )
                 TrackyBodySmall(

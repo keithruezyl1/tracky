@@ -7,7 +7,7 @@ data class DraftExerciseItem(
     val activity: String,
     val durationMinutes: Int,
     val metValue: Float,
-    val caloriesBurned: Int,
+    val caloriesBurned: Float,
     val intensity: ExerciseIntensity,
     val resolved: Boolean = true
 )

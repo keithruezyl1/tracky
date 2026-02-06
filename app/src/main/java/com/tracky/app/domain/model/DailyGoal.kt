@@ -6,7 +6,7 @@ package com.tracky.app.domain.model
 data class DailyGoal(
     val id: Long = 0,
     val effectiveFromDate: String,
-    val calorieGoalKcal: Int,
+    val calorieGoalKcal: Float,
     val carbsPct: Int,
     val proteinPct: Int,
     val fatPct: Int,
@@ -29,7 +29,7 @@ data class DailyGoal(
          * Fat: 9 kcal/g
          */
         fun calculateMacroTargets(
-            calorieGoal: Int,
+            calorieGoal: Float,
             carbsPct: Int,
             proteinPct: Int,
             fatPct: Int

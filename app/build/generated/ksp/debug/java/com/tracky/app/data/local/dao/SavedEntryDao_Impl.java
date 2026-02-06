@@ -61,7 +61,7 @@ public final class SavedEntryDao_Impl implements SavedEntryDao {
         statement.bindString(2, entity.getName());
         statement.bindString(3, entity.getEntryType());
         statement.bindString(4, entity.getEntryDataJson());
-        statement.bindLong(5, entity.getTotalCalories());
+        statement.bindDouble(5, entity.getTotalCalories());
         statement.bindLong(6, entity.getUseCount());
         if (entity.getLastUsedAt() == null) {
           statement.bindNull(7);
@@ -99,7 +99,7 @@ public final class SavedEntryDao_Impl implements SavedEntryDao {
         statement.bindString(2, entity.getName());
         statement.bindString(3, entity.getEntryType());
         statement.bindString(4, entity.getEntryDataJson());
-        statement.bindLong(5, entity.getTotalCalories());
+        statement.bindDouble(5, entity.getTotalCalories());
         statement.bindLong(6, entity.getUseCount());
         if (entity.getLastUsedAt() == null) {
           statement.bindNull(7);
@@ -275,8 +275,8 @@ public final class SavedEntryDao_Impl implements SavedEntryDao {
             _tmpEntryType = _cursor.getString(_cursorIndexOfEntryType);
             final String _tmpEntryDataJson;
             _tmpEntryDataJson = _cursor.getString(_cursorIndexOfEntryDataJson);
-            final int _tmpTotalCalories;
-            _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+            final float _tmpTotalCalories;
+            _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
             final int _tmpUseCount;
             _tmpUseCount = _cursor.getInt(_cursorIndexOfUseCount);
             final Long _tmpLastUsedAt;
@@ -341,8 +341,8 @@ public final class SavedEntryDao_Impl implements SavedEntryDao {
             _tmpEntryType = _cursor.getString(_cursorIndexOfEntryType);
             final String _tmpEntryDataJson;
             _tmpEntryDataJson = _cursor.getString(_cursorIndexOfEntryDataJson);
-            final int _tmpTotalCalories;
-            _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+            final float _tmpTotalCalories;
+            _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
             final int _tmpUseCount;
             _tmpUseCount = _cursor.getInt(_cursorIndexOfUseCount);
             final Long _tmpLastUsedAt;
@@ -407,8 +407,8 @@ public final class SavedEntryDao_Impl implements SavedEntryDao {
             _tmpEntryType = _cursor.getString(_cursorIndexOfEntryType);
             final String _tmpEntryDataJson;
             _tmpEntryDataJson = _cursor.getString(_cursorIndexOfEntryDataJson);
-            final int _tmpTotalCalories;
-            _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+            final float _tmpTotalCalories;
+            _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
             final int _tmpUseCount;
             _tmpUseCount = _cursor.getInt(_cursorIndexOfUseCount);
             final Long _tmpLastUsedAt;
@@ -470,8 +470,8 @@ public final class SavedEntryDao_Impl implements SavedEntryDao {
             _tmpEntryType = _cursor.getString(_cursorIndexOfEntryType);
             final String _tmpEntryDataJson;
             _tmpEntryDataJson = _cursor.getString(_cursorIndexOfEntryDataJson);
-            final int _tmpTotalCalories;
-            _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+            final float _tmpTotalCalories;
+            _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
             final int _tmpUseCount;
             _tmpUseCount = _cursor.getInt(_cursorIndexOfUseCount);
             final Long _tmpLastUsedAt;

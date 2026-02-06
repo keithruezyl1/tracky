@@ -1,5 +1,7 @@
 package com.tracky.app.ui.components
 
+import com.tracky.app.ui.utils.toSmartString
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -80,7 +82,8 @@ fun TrackyCircularMacroProgress(
     unit: String = "g",
     color: Color = TrackyColors.BrandPrimary,
     modifier: Modifier = Modifier,
-    animationKey: Any = Unit
+    animationKey: Any = Unit,
+    showPercentage: Boolean = true
 ) {
     val targetProgress = if (target > 0) consumed / target else 0f
     
@@ -108,15 +111,40 @@ fun TrackyCircularMacroProgress(
                 strokeWidth = 6.dp
             )
             
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (showPercentage) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Large percentage text
+                    Text(
+                        text = "${(targetProgress * 100).toInt()}%",
+                        style = TrackyTypography.LabelSmall.copy(
+                            fontSize = 14.sp,
+                            lineHeight = 16.sp
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        color = color
+                    )
+                    // Lighter gram count below
+                    Text(
+                        text = "${consumed.toSmartString()}$unit",
+                        style = TrackyTypography.LabelSmall.copy(
+                            fontSize = 9.sp,
+                            lineHeight = 10.sp
+                        ),
+                        fontWeight = FontWeight.Normal,
+                        color = color.copy(alpha = 0.6f)
+                    )
+                }
+            } else {
+                // Just centered grams
                 Text(
-                    text = "${consumed.toInt()}/${target.toInt()}$unit",
+                    text = "${consumed.toSmartString()}$unit",
                     style = TrackyTypography.LabelSmall.copy(
-                        fontSize = 9.sp,
-                        lineHeight = 10.sp
+                        fontSize = 12.sp,
+                        lineHeight = 14.sp
                     ),
                     fontWeight = FontWeight.Bold,
-                    color = color
+                    color = color,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
         }

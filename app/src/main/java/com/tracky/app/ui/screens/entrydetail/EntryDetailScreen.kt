@@ -2,6 +2,7 @@ package com.tracky.app.ui.screens.entrydetail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -305,19 +306,22 @@ private fun FoodEntryDetail(
                 label = "Carbs",
                 consumed = entry.totalCarbsG,
                 target = entry.totalCarbsG, // Show full circle
-                color = TrackyColors.Warning
+                color = TrackyColors.Success, // Green
+                showPercentage = false
             )
             TrackyCircularMacroProgress(
                 label = "Protein",
                 consumed = entry.totalProteinG,
                 target = entry.totalProteinG,
-                color = TrackyColors.Success
+                color = TrackyColors.Warning, // Orange
+                showPercentage = false
             )
             TrackyCircularMacroProgress(
                 label = "Fat",
                 consumed = entry.totalFatG,
                 target = entry.totalFatG,
-                color = TrackyColors.Error
+                color = Color(0xFFFFD60A), // Yellow
+                showPercentage = false
             )
         }
     }
@@ -356,12 +360,6 @@ private fun FoodItemRow(item: FoodItem) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 TrackyBodyText(text = item.name)
-                item.matchedName?.let { matched ->
-                    TrackyBodySmall(
-                        text = matched,
-                        color = TrackyColors.TextTertiary
-                    )
-                }
                 TrackyBodySmall(
                     text = "${item.quantity} ${item.unit}",
                     color = TrackyColors.TextSecondary
@@ -379,7 +377,7 @@ private fun FoodItemRow(item: FoodItem) {
         // Provenance
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
         TrackyBodySmall(
-            text = "Source: ${item.provenance.source.value} (${(item.provenance.confidence * 100).toInt()}% confidence)",
+            text = "Source: ${item.provenance.source.value}",
             color = TrackyColors.TextTertiary
         )
     }

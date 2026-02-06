@@ -10,7 +10,7 @@ data class ExerciseEntryEntity(
     val date: String,
     val time: String,
     val timestamp: Long,
-    val totalCalories: Int,
+    val totalCalories: Float,
     val totalDurationMinutes: Int,
     val userWeightKg: Float,
     val originalInput: String?,

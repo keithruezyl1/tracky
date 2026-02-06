@@ -20,7 +20,7 @@ import com.tracky.app.data.local.entity.ExerciseEntryEntity;
 import com.tracky.app.data.local.entity.ExerciseItemEntity;
 import java.lang.Class;
 import java.lang.Exception;
-import java.lang.Integer;
+import java.lang.Float;
 import java.lang.Long;
 import java.lang.Object;
 import java.lang.Override;
@@ -71,7 +71,7 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
         statement.bindString(2, entity.getDate());
         statement.bindString(3, entity.getTime());
         statement.bindLong(4, entity.getTimestamp());
-        statement.bindLong(5, entity.getTotalCalories());
+        statement.bindDouble(5, entity.getTotalCalories());
         statement.bindLong(6, entity.getTotalDurationMinutes());
         statement.bindDouble(7, entity.getUserWeightKg());
         if (entity.getOriginalInput() == null) {
@@ -98,7 +98,7 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
         statement.bindString(3, entity.getActivityName());
         statement.bindLong(4, entity.getDurationMinutes());
         statement.bindDouble(5, entity.getMetValue());
-        statement.bindLong(6, entity.getCaloriesBurned());
+        statement.bindDouble(6, entity.getCaloriesBurned());
         if (entity.getIntensity() == null) {
           statement.bindNull(7);
         } else {
@@ -136,7 +136,7 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
         statement.bindString(2, entity.getDate());
         statement.bindString(3, entity.getTime());
         statement.bindLong(4, entity.getTimestamp());
-        statement.bindLong(5, entity.getTotalCalories());
+        statement.bindDouble(5, entity.getTotalCalories());
         statement.bindLong(6, entity.getTotalDurationMinutes());
         statement.bindDouble(7, entity.getUserWeightKg());
         if (entity.getOriginalInput() == null) {
@@ -374,8 +374,8 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
               _tmpTime = _cursor.getString(_cursorIndexOfTime);
               final long _tmpTimestamp;
               _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-              final int _tmpTotalCalories;
-              _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+              final float _tmpTotalCalories;
+              _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
               final int _tmpTotalDurationMinutes;
               _tmpTotalDurationMinutes = _cursor.getInt(_cursorIndexOfTotalDurationMinutes);
               final float _tmpUserWeightKg;
@@ -463,8 +463,8 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
               _tmpTime = _cursor.getString(_cursorIndexOfTime);
               final long _tmpTimestamp;
               _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-              final int _tmpTotalCalories;
-              _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+              final float _tmpTotalCalories;
+              _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
               final int _tmpTotalDurationMinutes;
               _tmpTotalDurationMinutes = _cursor.getInt(_cursorIndexOfTotalDurationMinutes);
               final float _tmpUserWeightKg;
@@ -547,8 +547,8 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
               _tmpTime = _cursor.getString(_cursorIndexOfTime);
               final long _tmpTimestamp;
               _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-              final int _tmpTotalCalories;
-              _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+              final float _tmpTotalCalories;
+              _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
               final int _tmpTotalDurationMinutes;
               _tmpTotalDurationMinutes = _cursor.getInt(_cursorIndexOfTotalDurationMinutes);
               final float _tmpUserWeightKg;
@@ -631,8 +631,8 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
               _tmpTime = _cursor.getString(_cursorIndexOfTime);
               final long _tmpTimestamp;
               _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-              final int _tmpTotalCalories;
-              _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+              final float _tmpTotalCalories;
+              _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
               final int _tmpTotalDurationMinutes;
               _tmpTotalDurationMinutes = _cursor.getInt(_cursorIndexOfTotalDurationMinutes);
               final float _tmpUserWeightKg;
@@ -674,24 +674,24 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
   }
 
   @Override
-  public Flow<Integer> getTotalCaloriesBurnedForDate(final String date) {
+  public Flow<Float> getTotalCaloriesBurnedForDate(final String date) {
     final String _sql = "SELECT SUM(totalCalories) FROM exercise_entries WHERE date = ?";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
     int _argIndex = 1;
     _statement.bindString(_argIndex, date);
-    return CoroutinesRoom.createFlow(__db, false, new String[] {"exercise_entries"}, new Callable<Integer>() {
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"exercise_entries"}, new Callable<Float>() {
       @Override
       @Nullable
-      public Integer call() throws Exception {
+      public Float call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
-          final Integer _result;
+          final Float _result;
           if (_cursor.moveToFirst()) {
-            final Integer _tmp;
+            final Float _tmp;
             if (_cursor.isNull(0)) {
               _tmp = null;
             } else {
-              _tmp = _cursor.getInt(0);
+              _tmp = _cursor.getFloat(0);
             }
             _result = _tmp;
           } else {
@@ -711,26 +711,26 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
   }
 
   @Override
-  public Flow<Integer> getTotalCaloriesBurnedBetween(final String startDate, final String endDate) {
+  public Flow<Float> getTotalCaloriesBurnedBetween(final String startDate, final String endDate) {
     final String _sql = "SELECT SUM(totalCalories) FROM exercise_entries WHERE date >= ? AND date <= ?";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
     int _argIndex = 1;
     _statement.bindString(_argIndex, startDate);
     _argIndex = 2;
     _statement.bindString(_argIndex, endDate);
-    return CoroutinesRoom.createFlow(__db, false, new String[] {"exercise_entries"}, new Callable<Integer>() {
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"exercise_entries"}, new Callable<Float>() {
       @Override
       @Nullable
-      public Integer call() throws Exception {
+      public Float call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
-          final Integer _result;
+          final Float _result;
           if (_cursor.moveToFirst()) {
-            final Integer _tmp;
+            final Float _tmp;
             if (_cursor.isNull(0)) {
               _tmp = null;
             } else {
-              _tmp = _cursor.getInt(0);
+              _tmp = _cursor.getFloat(0);
             }
             _result = _tmp;
           } else {
@@ -812,8 +812,8 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
           _tmpDurationMinutes = _cursor.getInt(_cursorIndexOfDurationMinutes);
           final float _tmpMetValue;
           _tmpMetValue = _cursor.getFloat(_cursorIndexOfMetValue);
-          final int _tmpCaloriesBurned;
-          _tmpCaloriesBurned = _cursor.getInt(_cursorIndexOfCaloriesBurned);
+          final float _tmpCaloriesBurned;
+          _tmpCaloriesBurned = _cursor.getFloat(_cursorIndexOfCaloriesBurned);
           final String _tmpIntensity;
           if (_cursor.isNull(_cursorIndexOfIntensity)) {
             _tmpIntensity = null;

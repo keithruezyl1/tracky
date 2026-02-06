@@ -33,7 +33,7 @@ interface FoodEntryDao {
         SELECT SUM(totalCalories) FROM food_entries 
         WHERE date = :date
     """)
-    fun getTotalCaloriesForDate(date: String): Flow<Int?>
+    fun getTotalCaloriesForDate(date: String): Flow<Float?>
     
     @Query("""
         SELECT SUM(totalCarbsG) as carbs, SUM(totalProteinG) as protein, SUM(totalFatG) as fat
@@ -46,7 +46,7 @@ interface FoodEntryDao {
         SELECT SUM(totalCalories) FROM food_entries 
         WHERE date >= :startDate AND date <= :endDate
     """)
-    fun getTotalCaloriesBetween(startDate: String, endDate: String): Flow<Int?>
+    fun getTotalCaloriesBetween(startDate: String, endDate: String): Flow<Float?>
 
     @Query("""
         SELECT SUM(totalCarbsG) as carbs, SUM(totalProteinG) as protein, SUM(totalFatG) as fat

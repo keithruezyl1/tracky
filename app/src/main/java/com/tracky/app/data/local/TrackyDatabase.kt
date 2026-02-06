@@ -45,7 +45,7 @@ import kotlinx.coroutines.launch
         FoodsFtsEntity::class,
         SynonymEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class TrackyDatabase : RoomDatabase() {

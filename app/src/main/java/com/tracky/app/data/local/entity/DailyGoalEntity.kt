@@ -28,7 +28,7 @@ data class DailyGoalEntity(
     /**
      * Daily calorie goal in kcal
      */
-    val calorieGoalKcal: Int,
+    val calorieGoalKcal: Float,
     
     /**
      * Carbohydrate percentage (0-100)

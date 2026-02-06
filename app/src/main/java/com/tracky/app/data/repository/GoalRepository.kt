@@ -58,7 +58,7 @@ class GoalRepository @Inject constructor(
      * Save new goal (effective from today)
      */
     suspend fun saveGoal(
-        calorieGoalKcal: Int,
+        calorieGoalKcal: Float,
         macroDistribution: MacroDistribution
     ): Long {
         require(macroDistribution.isValid) { "Macro percentages must sum to 100" }

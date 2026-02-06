@@ -75,10 +75,10 @@ fun EditFoodEntrySheet(
             // Totals
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
             TrackyCard {
-                val totalCalories = editedItems.sumOf { it.calories }
-                val totalCarbs = editedItems.sumOf { it.carbsG.toDouble() }.toFloat()
-                val totalProtein = editedItems.sumOf { it.proteinG.toDouble() }.toFloat()
-                val totalFat = editedItems.sumOf { it.fatG.toDouble() }.toFloat()
+                val totalCalories = editedItems.map { it.calories }.sum()
+                val totalCarbs = editedItems.map { it.carbsG.toDouble() }.sum().toFloat()
+                val totalProtein = editedItems.map { it.proteinG.toDouble() }.sum().toFloat()
+                val totalFat = editedItems.map { it.fatG.toDouble() }.sum().toFloat()
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -86,7 +86,7 @@ fun EditFoodEntrySheet(
                 ) {
                     TrackyBodyText(text = "Total Calories")
                     TrackyBodyText(
-                        text = "$totalCalories kcal",
+                        text = "${totalCalories.toInt()} kcal",
                         color = TrackyTokens.Colors.BrandPrimary
                     )
                 }
@@ -117,10 +117,10 @@ fun EditFoodEntrySheet(
             TrackySheetActions(
                 primaryText = "Save Changes",
                 onPrimaryClick = {
-                    val totalCalories = editedItems.sumOf { it.calories }
-                    val totalCarbs = editedItems.sumOf { it.carbsG.toDouble() }.toFloat()
-                    val totalProtein = editedItems.sumOf { it.proteinG.toDouble() }.toFloat()
-                    val totalFat = editedItems.sumOf { it.fatG.toDouble() }.toFloat()
+                    val totalCalories = editedItems.map { it.calories }.sum()
+                    val totalCarbs = editedItems.map { it.carbsG.toDouble() }.sum().toFloat()
+                    val totalProtein = editedItems.map { it.proteinG.toDouble() }.sum().toFloat()
+                    val totalFat = editedItems.map { it.fatG.toDouble() }.sum().toFloat()
 
                     val normalizedItems = editedItems.map { it.copy(name = sentenceCase(it.name)) }
 
@@ -158,7 +158,7 @@ private fun EditFoodItemCard(
         newName: String = name,
         newQuantity: Float = quantity.toFloatOrNull() ?: item.quantity,
         newUnit: String = unit,
-        newCalories: Int = calories.toIntOrNull() ?: item.calories,
+        newCalories: Float = calories.toFloatOrNull() ?: item.calories,
         newCarbs: Float = carbs.toFloatOrNull() ?: item.carbsG,
         newProtein: Float = protein.toFloatOrNull() ?: item.proteinG,
         newFat: Float = fat.toFloatOrNull() ?: item.fatG
@@ -219,11 +219,11 @@ private fun EditFoodItemCard(
             value = calories,
             onValueChange = {
                 calories = it
-                it.toIntOrNull()?.let { c -> emitChange(newCalories = c) }
+                it.toFloatOrNull()?.let { c -> emitChange(newCalories = c) }
             },
             label = "Calories",
             suffix = "kcal",
-            allowDecimal = false
+            allowDecimal = true
         )
 
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
@@ -310,7 +310,7 @@ fun EditExerciseEntrySheet(
             // Totals
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
             TrackyCard {
-                val totalCalories = editedItems.sumOf { it.caloriesBurned }
+                val totalCalories = editedItems.map { it.caloriesBurned }.sum()
                 val totalDuration = editedItems.sumOf { it.durationMinutes }
 
                 Row(
@@ -327,7 +327,7 @@ fun EditExerciseEntrySheet(
                 ) {
                     TrackyBodyText(text = "Total Calories Burned")
                     TrackyBodyText(
-                        text = "$totalCalories kcal",
+                        text = "${totalCalories.toInt()} kcal",
                         color = TrackyTokens.Colors.Success
                     )
                 }
@@ -336,7 +336,7 @@ fun EditExerciseEntrySheet(
             TrackySheetActions(
                 primaryText = "Save Changes",
                 onPrimaryClick = {
-                    val totalCalories = editedItems.sumOf { it.caloriesBurned }
+                    val totalCalories = editedItems.map { it.caloriesBurned }.sum()
                     val totalDuration = editedItems.sumOf { it.durationMinutes }
 
                     val normalizedItems = editedItems.map { 
@@ -370,7 +370,7 @@ private fun EditExerciseItemCard(
     fun emitChange(
         newActivity: String = activityName,
         newDuration: Int = durationMinutes.toIntOrNull() ?: item.durationMinutes,
-        newCalories: Int = caloriesBurned.toIntOrNull() ?: item.caloriesBurned
+        newCalories: Float = caloriesBurned.toFloatOrNull() ?: item.caloriesBurned
     ) {
         onItemChanged(
             item.copy(
@@ -411,11 +411,11 @@ private fun EditExerciseItemCard(
             value = caloriesBurned,
             onValueChange = {
                 caloriesBurned = it
-                it.toIntOrNull()?.let { c -> emitChange(newCalories = c) }
+                it.toFloatOrNull()?.let { c -> emitChange(newCalories = c) }
             },
             label = "Calories Burned",
             suffix = "kcal",
-            allowDecimal = false
+            allowDecimal = true
         )
     }
 }

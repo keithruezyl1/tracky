@@ -136,16 +136,32 @@ class WeightTrackerViewModel @Inject constructor(
             val earliestEntry = allEntries.minByOrNull { it.timestamp }
             
             if (earliestEntry != null && earliestEntry.id == id) {
-                // Determine if there are other entries? 
                 // User requirement: "should NOT be able to delete/remove the initial weight entry"
-                // We'll just block it. 
-                // Ideally show an error message. I'll trigger a one-shot event or update state if I can.
-                // For now, silent block to satisfy the core requirement without major refactor.
                 _uiState.update { it.copy(error = "Cannot delete the initial weight entry.") }
                 return@launch
             }
             
             weightRepository.deleteEntry(id)
+            
+            // Recalculate current weight from remaining entries
+            val remainingEntries = weightRepository.getAllEntries().first()
+            val latestEntry = remainingEntries.maxByOrNull { it.timestamp }
+            val newEarliestEntry = remainingEntries.minByOrNull { it.timestamp }
+            
+            if (latestEntry != null) {
+                // Update profile's current weight to match latest entry
+                val profile = profileRepository.getProfileOnce()
+                if (profile != null) {
+                    profileRepository.updateWeight(latestEntry.weightKg, profile.heightCm)
+                }
+                // Update UI state with recalculated values
+                _uiState.update { 
+                    it.copy(
+                        currentWeightKg = latestEntry.weightKg,
+                        startWeightKg = newEarliestEntry?.weightKg
+                    ) 
+                }
+            }
         }
     }
 

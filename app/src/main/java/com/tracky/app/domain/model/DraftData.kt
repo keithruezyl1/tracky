@@ -7,7 +7,7 @@ import kotlinx.datetime.LocalDate
 sealed class DraftData {
     data class FoodDraft(
         val items: List<DraftFoodItem>,
-        val totalCalories: Int,
+        val totalCalories: Float,
         val totalCarbsG: Float,
         val totalProteinG: Float,
         val totalFatG: Float,
@@ -17,7 +17,7 @@ sealed class DraftData {
 
     data class ExerciseDraft(
         val items: List<DraftExerciseItem>,
-        val totalCalories: Int,
+        val totalCalories: Float,
         val totalDurationMinutes: Int,
         val date: LocalDate
     ) : DraftData()
@@ -29,7 +29,7 @@ data class DraftFoodItem(
     val matchedName: String?,
     val quantity: Double,
     val unit: String,
-    val calories: Int,
+    val calories: Float,
     val carbsG: Float,
     val proteinG: Float,
     val fatG: Float,

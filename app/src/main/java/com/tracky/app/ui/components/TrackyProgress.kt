@@ -1,5 +1,7 @@
 package com.tracky.app.ui.components
 
+import com.tracky.app.ui.utils.toSmartString
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -95,9 +97,9 @@ fun TrackyProgress(
  */
 @Composable
 fun TrackyCaloriesProgress(
-    consumed: Int,
-    burned: Int,
-    goal: Int,
+    consumed: Float,
+    burned: Float,
+    goal: Float,
     modifier: Modifier = Modifier,
     animationKey: Any = Unit
 ) {
@@ -126,7 +128,7 @@ fun TrackyCaloriesProgress(
         ) {
             Column {
                 Text(
-                    text = "$consumed",
+                    text = consumed.toSmartString(),
                     style = TrackyTypography.HeadlineLarge,
                     color = TrackyColors.TextPrimary
                 )
@@ -139,7 +141,7 @@ fun TrackyCaloriesProgress(
             
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "${if (remaining >= 0) remaining else 0}",
+                    text = if (remaining >= 0) remaining.toSmartString() else "0",
                     style = TrackyTypography.HeadlineMedium,
                     color = if (isOverGoal) TrackyColors.Warning else TrackyColors.BrandPrimary
                 )
@@ -172,13 +174,13 @@ fun TrackyCaloriesProgress(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Goal: $goal kcal",
+                text = "Goal: ${goal.toSmartString()} kcal",
                 style = TrackyTypography.LabelSmall,
                 color = TrackyColors.TextTertiary
             )
             if (burned > 0) {
                 Text(
-                    text = "+$burned burned",
+                    text = "+${burned.toSmartString()} burned",
                     style = TrackyTypography.LabelSmall,
                     color = TrackyColors.Success
                 )
@@ -216,7 +218,7 @@ fun TrackyMacroProgress(
                 color = TrackyColors.TextSecondary
             )
             Text(
-                text = "${consumed.toInt()}/${target.toInt()}$unit",
+                text = "${consumed.toSmartString()}/${target.toSmartString()}$unit",
                 style = TrackyTypography.BodyMedium,
                 color = if (isOverTarget) TrackyColors.Warning else TrackyColors.TextPrimary
             )
@@ -272,7 +274,7 @@ fun TrackyMacroPill(
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "${consumed.toInt()}/${target.toInt()}g",
+                text = "${consumed.toSmartString()}/${target.toSmartString()}g",
                 style = TrackyTypography.LabelSmall,
                 color = TrackyColors.TextPrimary
             )

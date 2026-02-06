@@ -137,15 +137,15 @@ class LoggingRepository @Inject constructor(
     /**
      * Get total food calories for a date
      */
-    fun getTotalFoodCalories(date: String): Flow<Int> {
-        return foodEntryDao.getTotalCaloriesForDate(date).map { it ?: 0 }
+    fun getTotalFoodCalories(date: String): Flow<Float> {
+        return foodEntryDao.getTotalCaloriesForDate(date).map { it ?: 0f }
     }
 
     /**
      * Get total exercise calories for a date
      */
-    fun getTotalExerciseCalories(date: String): Flow<Int> {
-        return exerciseEntryDao.getTotalCaloriesBurnedForDate(date).map { it ?: 0 }
+    fun getTotalExerciseCalories(date: String): Flow<Float> {
+        return exerciseEntryDao.getTotalCaloriesBurnedForDate(date).map { it ?: 0f }
     }
 
     /**
@@ -159,12 +159,12 @@ class LoggingRepository @Inject constructor(
     // Range Summaries (for Summary Screen)
     // ─────────────────────────────────────────────────────────────────────────
 
-    fun getTotalFoodCaloriesBetween(startDate: String, endDate: String): Flow<Int> {
-        return foodEntryDao.getTotalCaloriesBetween(startDate, endDate).map { it ?: 0 }
+    fun getTotalFoodCaloriesBetween(startDate: String, endDate: String): Flow<Float> {
+        return foodEntryDao.getTotalCaloriesBetween(startDate, endDate).map { it ?: 0f }
     }
 
-    fun getTotalExerciseCaloriesBetween(startDate: String, endDate: String): Flow<Int> {
-        return exerciseEntryDao.getTotalCaloriesBurnedBetween(startDate, endDate).map { it ?: 0 }
+    fun getTotalExerciseCaloriesBetween(startDate: String, endDate: String): Flow<Float> {
+        return exerciseEntryDao.getTotalCaloriesBurnedBetween(startDate, endDate).map { it ?: 0f }
     }
 
     fun getMacroTotalsBetween(startDate: String, endDate: String): Flow<MacroTotals?> {
@@ -191,8 +191,8 @@ class LoggingRepository @Inject constructor(
             val goal = values[0] as? com.tracky.app.domain.model.DailyGoal
             val foodEntries = values[1] as List<FoodEntry>
             val exerciseEntries = values[2] as List<ExerciseEntry>
-            val foodCalories = values[3] as Int
-            val exerciseCalories = values[4] as Int
+            val foodCalories = values[3] as Float
+            val exerciseCalories = values[4] as Float
             val macros = values[5] as? MacroTotals
 
             DailySummary(

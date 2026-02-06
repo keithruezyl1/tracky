@@ -17,8 +17,8 @@ data class WeightEntry(
  * Weight chart time range
  */
 enum class WeightChartRange {
+    DAY,
     WEEK,
     MONTH,
-    YEAR,
     ALL
 }

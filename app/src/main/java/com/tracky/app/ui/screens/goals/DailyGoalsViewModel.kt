@@ -34,14 +34,17 @@ class DailyGoalsViewModel @Inject constructor(
                         calorieGoal = goal.calorieGoalKcal,
                         carbsPct = goal.carbsPct,
                         proteinPct = goal.proteinPct,
-                        fatPct = goal.fatPct
+                        fatPct = goal.fatPct,
+                        carbsG = calculateCarbsG(goal.calorieGoalKcal, goal.carbsPct),
+                        proteinG = calculateProteinG(goal.calorieGoalKcal, goal.proteinPct),
+                        fatG = calculateFatG(goal.calorieGoalKcal, goal.fatPct)
                     )
                 }
             }
         }
     }
 
-    fun setCalorieGoal(calories: Int) {
+    fun setCalorieGoal(calories: Float) {
         _uiState.update { 
             val newState = it.copy(calorieGoal = calories)
             newState.copy(
@@ -89,21 +92,21 @@ class DailyGoalsViewModel @Inject constructor(
         }
     }
 
-    private fun calculateCarbsG(calories: Int, pct: Int): Float {
+    private fun calculateCarbsG(calories: Float, pct: Int): Float {
         return (calories * pct / 100f) / 4f
     }
 
-    private fun calculateProteinG(calories: Int, pct: Int): Float {
+    private fun calculateProteinG(calories: Float, pct: Int): Float {
         return (calories * pct / 100f) / 4f
     }
 
-    private fun calculateFatG(calories: Int, pct: Int): Float {
+    private fun calculateFatG(calories: Float, pct: Int): Float {
         return (calories * pct / 100f) / 9f
     }
 }
 
 data class DailyGoalsUiState(
-    val calorieGoal: Int = 2000,
+    val calorieGoal: Float = 2000f,
     val carbsPct: Int = 50,
     val proteinPct: Int = 25,
     val fatPct: Int = 25,

@@ -34,7 +34,7 @@ data class SavedEntryEntity(
     /**
      * Total calories (for quick display)
      */
-    val totalCalories: Int,
+    val totalCalories: Float,
     
     /**
      * Number of times this entry has been used

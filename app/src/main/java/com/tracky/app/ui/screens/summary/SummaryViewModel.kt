@@ -111,8 +111,8 @@ enum class SummaryTimeframe(val label: String, val days: Int) {
 
 data class SummaryUiState(
     val isLoading: Boolean = false,
-    val averageCalories: Int = 0,
-    val totalCalories: Int = 0,
+    val averageCalories: Float = 0f,
+    val totalCalories: Float = 0f,
     val averageCarbs: Float = 0f,
     val averageProtein: Float = 0f,
     val averageFat: Float = 0f,

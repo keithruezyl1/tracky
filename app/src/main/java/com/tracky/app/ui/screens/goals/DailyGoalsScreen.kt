@@ -72,11 +72,11 @@ fun DailyGoalsScreen(
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
             TrackyNumberInput(
-                value = uiState.calorieGoal.toString(),
-                onValueChange = { viewModel.setCalorieGoal(it.toIntOrNull() ?: 2000) },
+                value = uiState.calorieGoal.toInt().toString(),
+                onValueChange = { viewModel.setCalorieGoal(it.toFloatOrNull() ?: 2000f) },
                 label = "Daily Calorie Target",
                 suffix = "kcal",
-                allowDecimal = false
+                allowDecimal = true
             )
 
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
@@ -86,9 +86,9 @@ fun DailyGoalsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XS)
             ) {
-                listOf(1500, 1800, 2000, 2200, 2500).forEach { preset ->
+                listOf(1500f, 1800f, 2000f, 2200f, 2500f).forEach { preset ->
                     TrackyChip(
-                        label = "$preset",
+                        label = "${preset.toInt()}",
                         selected = uiState.calorieGoal == preset,
                         onClick = { viewModel.setCalorieGoal(preset) },
                         modifier = Modifier.weight(1f),

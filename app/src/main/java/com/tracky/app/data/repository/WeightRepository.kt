@@ -113,9 +113,9 @@ class WeightRepository @Inject constructor(
         val endDate = today.toString()
 
         val startDate = when (range) {
+            WeightChartRange.DAY -> today.toString() // Entries for today only
             WeightChartRange.WEEK -> today.minus(7, DateTimeUnit.DAY).toString()
             WeightChartRange.MONTH -> today.minus(1, DateTimeUnit.MONTH).toString()
-            WeightChartRange.YEAR -> today.minus(1, DateTimeUnit.YEAR).toString()
             WeightChartRange.ALL -> "1970-01-01" // Start from beginning
         }
 

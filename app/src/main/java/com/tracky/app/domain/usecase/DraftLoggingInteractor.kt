@@ -77,7 +77,7 @@ class DraftLoggingInteractor @Inject constructor(
                             matchedName = null,
                             quantity = dto.quantity.toDouble(),
                             unit = dto.unit,
-                            calories = 0,
+                            calories = 0f,
                             carbsG = 0f,
                             proteinG = 0f,
                             fatG = 0f,
@@ -87,7 +87,7 @@ class DraftLoggingInteractor @Inject constructor(
                     }
                     val foodDraft = DraftData.FoodDraft(
                         items = draftItems,
-                        totalCalories = 0,
+                        totalCalories = 0f,
                         totalCarbsG = 0f,
                         totalProteinG = 0f,
                         totalFatG = 0f,
@@ -122,7 +122,7 @@ class DraftLoggingInteractor @Inject constructor(
                             matchedName = null,
                             quantity = dto.quantity.toDouble(),
                             unit = dto.unit,
-                            calories = 0,
+                            calories = 0f,
                             carbsG = 0f,
                             proteinG = 0f,
                             fatG = 0f,
@@ -132,7 +132,7 @@ class DraftLoggingInteractor @Inject constructor(
                     }
                     val foodDraft = DraftData.FoodDraft(
                         items = draftItems,
-                        totalCalories = 0,
+                        totalCalories = 0f,
                         totalCarbsG = 0f,
                         totalProteinG = 0f,
                         totalFatG = 0f,
@@ -170,7 +170,7 @@ class DraftLoggingInteractor @Inject constructor(
         
         val updatedDraft = draft.copy(
             items = resolvedItems,
-            totalCalories = resolvedItems.sumOf { it.calories },
+            totalCalories = resolvedItems.sumOf { it.calories.toDouble() }.toFloat(),
             totalCarbsG = resolvedItems.sumOf { it.carbsG.toDouble() }.toFloat(),
             totalProteinG = resolvedItems.sumOf { it.proteinG.toDouble() }.toFloat(),
             totalFatG = resolvedItems.sumOf { it.fatG.toDouble() }.toFloat()
@@ -192,14 +192,14 @@ class DraftLoggingInteractor @Inject constructor(
                             activity = sentenceCase(parsed.activity),
                             durationMinutes = parsed.durationMinutes,
                             metValue = 0f,
-                            caloriesBurned = 0,
+                            caloriesBurned = 0f,
                             intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
                             resolved = false
                         )
                     }
                     val exerciseDraft = DraftData.ExerciseDraft(
                         items = draftItems,
-                        totalCalories = 0,
+                        totalCalories = 0f,
                         totalDurationMinutes = draftItems.sumOf { it.durationMinutes },
                         date = date
                     )
@@ -226,14 +226,14 @@ class DraftLoggingInteractor @Inject constructor(
                             activity = sentenceCase(parsed.activity),
                             durationMinutes = parsed.durationMinutes,
                             metValue = parsed.metValue ?: 0f,  // Use MET from image if available
-                            caloriesBurned = parsed.caloriesBurned ?: 0,  // Use calories from image if available
+                            caloriesBurned = parsed.caloriesBurned?.toFloat() ?: 0f,  // Use calories from image if available
                             intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
                             resolved = parsed.caloriesBurned != null  // Mark as resolved if calories were extracted from image
                         )
                     }
                     val exerciseDraft = DraftData.ExerciseDraft(
                         items = draftItems,
-                        totalCalories = draftItems.sumOf { it.caloriesBurned },
+                        totalCalories = draftItems.map { it.caloriesBurned }.sum(),
                         totalDurationMinutes = draftItems.sumOf { it.durationMinutes },
                         date = date
                     )
@@ -271,7 +271,7 @@ class DraftLoggingInteractor @Inject constructor(
                                 val body = response.body()
                                 if (body != null) {
                                     item.copy(
-                                        caloriesBurned = body.caloriesBurned ?: 0,
+                                        caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
                                         metValue = body.metValue ?: 0f,
                                         resolved = body.resolved
                                     )
@@ -286,7 +286,7 @@ class DraftLoggingInteractor @Inject constructor(
             
             val updatedDraft = draft.copy(
                 items = resolvedItems,
-                totalCalories = resolvedItems.sumOf { it.caloriesBurned }
+                totalCalories = resolvedItems.map { it.caloriesBurned }.sum()
             )
             _draftState.value = DraftState.ExerciseDraft(updatedDraft)
         } catch (e: Exception) {
@@ -310,7 +310,7 @@ class DraftLoggingInteractor @Inject constructor(
                                 matchedName = null,
                                 quantity = dto.quantity.toDouble(),
                                 unit = dto.unit,
-                                calories = 0,
+                                calories = 0f,
                                 carbsG = 0f,
                                 proteinG = 0f,
                                 fatG = 0f,
@@ -320,7 +320,7 @@ class DraftLoggingInteractor @Inject constructor(
                         }
                         val foodDraft = DraftData.FoodDraft(
                             items = draftItems,
-                            totalCalories = 0,
+                            totalCalories = 0f,
                             totalCarbsG = 0f,
                             totalProteinG = 0f,
                             totalFatG = 0f,
@@ -335,14 +335,14 @@ class DraftLoggingInteractor @Inject constructor(
                                 activity = sentenceCase(parsed.activity),
                                 durationMinutes = parsed.durationMinutes,
                                 metValue = 0f,
-                                caloriesBurned = 0,
+                                caloriesBurned = 0f,
                                 intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
                                 resolved = false
                             )
                         }
                         val exerciseDraft = DraftData.ExerciseDraft(
                             items = draftItems,
-                            totalCalories = 0,
+                            totalCalories = 0f,
                             totalDurationMinutes = draftItems.sumOf { it.durationMinutes },
                             date = date
                         )
@@ -374,7 +374,7 @@ class DraftLoggingInteractor @Inject constructor(
                                 matchedName = null,
                                 quantity = dto.quantity.toDouble(),
                                 unit = dto.unit,
-                                calories = 0,
+                                calories = 0f,
                                 carbsG = 0f,
                                 proteinG = 0f,
                                 fatG = 0f,
@@ -384,7 +384,7 @@ class DraftLoggingInteractor @Inject constructor(
                         }
                         val foodDraft = DraftData.FoodDraft(
                             items = draftItems,
-                            totalCalories = 0,
+                            totalCalories = 0f,
                             totalCarbsG = 0f,
                             totalProteinG = 0f,
                             totalFatG = 0f,
@@ -399,14 +399,14 @@ class DraftLoggingInteractor @Inject constructor(
                                 activity = sentenceCase(parsed.activity),
                                 durationMinutes = parsed.durationMinutes,
                                 metValue = parsed.metValue ?: 0f,
-                                caloriesBurned = parsed.caloriesBurned ?: 0,
+                                caloriesBurned = parsed.caloriesBurned?.toFloat() ?: 0f,
                                 intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
                                 resolved = parsed.caloriesBurned != null
                             )
                         }
                         val exerciseDraft = DraftData.ExerciseDraft(
                             items = draftItems,
-                            totalCalories = draftItems.sumOf { it.caloriesBurned },
+                            totalCalories = draftItems.map { it.caloriesBurned }.sum(),
                             totalDurationMinutes = draftItems.sumOf { it.durationMinutes },
                             date = date
                         )

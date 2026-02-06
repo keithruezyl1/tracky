@@ -19,7 +19,6 @@ import com.tracky.app.data.local.entity.FoodItemEntity;
 import java.lang.Class;
 import java.lang.Exception;
 import java.lang.Float;
-import java.lang.Integer;
 import java.lang.Long;
 import java.lang.Object;
 import java.lang.Override;
@@ -71,7 +70,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
         statement.bindString(2, entity.getDate());
         statement.bindString(3, entity.getTime());
         statement.bindLong(4, entity.getTimestamp());
-        statement.bindLong(5, entity.getTotalCalories());
+        statement.bindDouble(5, entity.getTotalCalories());
         statement.bindDouble(6, entity.getTotalCarbsG());
         statement.bindDouble(7, entity.getTotalProteinG());
         statement.bindDouble(8, entity.getTotalFatG());
@@ -114,7 +113,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
         }
         statement.bindDouble(5, entity.getQuantity());
         statement.bindString(6, entity.getUnit());
-        statement.bindLong(7, entity.getCalories());
+        statement.bindDouble(7, entity.getCalories());
         statement.bindDouble(8, entity.getCarbsG());
         statement.bindDouble(9, entity.getProteinG());
         statement.bindDouble(10, entity.getFatG());
@@ -168,7 +167,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
         statement.bindString(2, entity.getDate());
         statement.bindString(3, entity.getTime());
         statement.bindLong(4, entity.getTimestamp());
-        statement.bindLong(5, entity.getTotalCalories());
+        statement.bindDouble(5, entity.getTotalCalories());
         statement.bindDouble(6, entity.getTotalCarbsG());
         statement.bindDouble(7, entity.getTotalProteinG());
         statement.bindDouble(8, entity.getTotalFatG());
@@ -212,7 +211,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
         }
         statement.bindDouble(5, entity.getQuantity());
         statement.bindString(6, entity.getUnit());
-        statement.bindLong(7, entity.getCalories());
+        statement.bindDouble(7, entity.getCalories());
         statement.bindDouble(8, entity.getCarbsG());
         statement.bindDouble(9, entity.getProteinG());
         statement.bindDouble(10, entity.getFatG());
@@ -474,8 +473,8 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             _tmpTime = _cursor.getString(_cursorIndexOfTime);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-            final int _tmpTotalCalories;
-            _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+            final float _tmpTotalCalories;
+            _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
             final float _tmpTotalCarbsG;
             _tmpTotalCarbsG = _cursor.getFloat(_cursorIndexOfTotalCarbsG);
             final float _tmpTotalProteinG;
@@ -558,8 +557,8 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             _tmpTime = _cursor.getString(_cursorIndexOfTime);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-            final int _tmpTotalCalories;
-            _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+            final float _tmpTotalCalories;
+            _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
             final float _tmpTotalCarbsG;
             _tmpTotalCarbsG = _cursor.getFloat(_cursorIndexOfTotalCarbsG);
             final float _tmpTotalProteinG;
@@ -637,8 +636,8 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             _tmpTime = _cursor.getString(_cursorIndexOfTime);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-            final int _tmpTotalCalories;
-            _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+            final float _tmpTotalCalories;
+            _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
             final float _tmpTotalCarbsG;
             _tmpTotalCarbsG = _cursor.getFloat(_cursorIndexOfTotalCarbsG);
             final float _tmpTotalProteinG;
@@ -715,8 +714,8 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             _tmpTime = _cursor.getString(_cursorIndexOfTime);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
-            final int _tmpTotalCalories;
-            _tmpTotalCalories = _cursor.getInt(_cursorIndexOfTotalCalories);
+            final float _tmpTotalCalories;
+            _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
             final float _tmpTotalCarbsG;
             _tmpTotalCarbsG = _cursor.getFloat(_cursorIndexOfTotalCarbsG);
             final float _tmpTotalProteinG;
@@ -763,7 +762,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
   }
 
   @Override
-  public Flow<Integer> getTotalCaloriesForDate(final String date) {
+  public Flow<Float> getTotalCaloriesForDate(final String date) {
     final String _sql = "\n"
             + "        SELECT SUM(totalCalories) FROM food_entries \n"
             + "        WHERE date = ?\n"
@@ -771,19 +770,19 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
     int _argIndex = 1;
     _statement.bindString(_argIndex, date);
-    return CoroutinesRoom.createFlow(__db, false, new String[] {"food_entries"}, new Callable<Integer>() {
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"food_entries"}, new Callable<Float>() {
       @Override
       @Nullable
-      public Integer call() throws Exception {
+      public Float call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
-          final Integer _result;
+          final Float _result;
           if (_cursor.moveToFirst()) {
-            final Integer _tmp;
+            final Float _tmp;
             if (_cursor.isNull(0)) {
               _tmp = null;
             } else {
-              _tmp = _cursor.getInt(0);
+              _tmp = _cursor.getFloat(0);
             }
             _result = _tmp;
           } else {
@@ -858,7 +857,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
   }
 
   @Override
-  public Flow<Integer> getTotalCaloriesBetween(final String startDate, final String endDate) {
+  public Flow<Float> getTotalCaloriesBetween(final String startDate, final String endDate) {
     final String _sql = "\n"
             + "        SELECT SUM(totalCalories) FROM food_entries \n"
             + "        WHERE date >= ? AND date <= ?\n"
@@ -868,19 +867,19 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
     _statement.bindString(_argIndex, startDate);
     _argIndex = 2;
     _statement.bindString(_argIndex, endDate);
-    return CoroutinesRoom.createFlow(__db, false, new String[] {"food_entries"}, new Callable<Integer>() {
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"food_entries"}, new Callable<Float>() {
       @Override
       @Nullable
-      public Integer call() throws Exception {
+      public Float call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
-          final Integer _result;
+          final Float _result;
           if (_cursor.moveToFirst()) {
-            final Integer _tmp;
+            final Float _tmp;
             if (_cursor.isNull(0)) {
               _tmp = null;
             } else {
-              _tmp = _cursor.getInt(0);
+              _tmp = _cursor.getFloat(0);
             }
             _result = _tmp;
           } else {
@@ -1001,8 +1000,8 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             _tmpQuantity = _cursor.getFloat(_cursorIndexOfQuantity);
             final String _tmpUnit;
             _tmpUnit = _cursor.getString(_cursorIndexOfUnit);
-            final int _tmpCalories;
-            _tmpCalories = _cursor.getInt(_cursorIndexOfCalories);
+            final float _tmpCalories;
+            _tmpCalories = _cursor.getFloat(_cursorIndexOfCalories);
             final float _tmpCarbsG;
             _tmpCarbsG = _cursor.getFloat(_cursorIndexOfCarbsG);
             final float _tmpProteinG;
@@ -1084,8 +1083,8 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             _tmpQuantity = _cursor.getFloat(_cursorIndexOfQuantity);
             final String _tmpUnit;
             _tmpUnit = _cursor.getString(_cursorIndexOfUnit);
-            final int _tmpCalories;
-            _tmpCalories = _cursor.getInt(_cursorIndexOfCalories);
+            final float _tmpCalories;
+            _tmpCalories = _cursor.getFloat(_cursorIndexOfCalories);
             final float _tmpCarbsG;
             _tmpCarbsG = _cursor.getFloat(_cursorIndexOfCarbsG);
             final float _tmpProteinG;

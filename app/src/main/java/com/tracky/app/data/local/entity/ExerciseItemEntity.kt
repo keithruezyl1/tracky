@@ -24,7 +24,7 @@ data class ExerciseItemEntity(
     val activityName: String,
     val durationMinutes: Int,
     val metValue: Float,
-    val caloriesBurned: Int,
+    val caloriesBurned: Float,
     val intensity: String?,    // Store as string from enum
     val source: String,        // Provenance source
     val confidence: Float,     // Provenance confidence

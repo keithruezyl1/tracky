@@ -66,7 +66,7 @@ class OnboardingViewModel @Inject constructor(
     // Step 3: Daily Goals
     // ─────────────────────────────────────────────────────────────────────────
 
-    fun setCalorieGoal(calories: Int) {
+    fun setCalorieGoal(calories: Float) {
         _uiState.update { it.copy(calorieGoalKcal = calories) }
     }
 
@@ -193,7 +193,7 @@ data class OnboardingUiState(
     val bmi: Float = 0f,
     
     // Step 3: Daily Goals
-    val calorieGoalKcal: Int = 2000,
+    val calorieGoalKcal: Float = 2000f,
     
     // Step 4: Macro Distribution
     val macroDistribution: MacroDistribution = MacroDistribution(

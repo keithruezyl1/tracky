@@ -350,8 +350,8 @@ private fun ProfileStep(
 
 @Composable
 private fun GoalsStep(
-    calorieGoal: Int,
-    onCalorieGoalChanged: (Int) -> Unit
+    calorieGoal: Float,
+    onCalorieGoalChanged: (Float) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -368,12 +368,12 @@ private fun GoalsStep(
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.L))
 
         TrackyNumberInput(
-            value = calorieGoal.toString(),
-            onValueChange = { onCalorieGoalChanged(it.toIntOrNull() ?: 2000) },
+            value = calorieGoal.toInt().toString(),
+            onValueChange = { onCalorieGoalChanged(it.toFloatOrNull() ?: 2000f) },
             label = "Daily Calorie Goal",
             placeholder = "Enter calorie goal",
             suffix = "kcal",
-            allowDecimal = false
+            allowDecimal = true
         )
 
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.L))
@@ -386,9 +386,9 @@ private fun GoalsStep(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XS)
         ) {
-            listOf(1500, 1800, 2000, 2200, 2500).forEach { preset ->
+            listOf(1500f, 1800f, 2000f, 2200f, 2500f).forEach { preset ->
                 TrackyChip(
-                    label = "$preset",
+                    label = "${preset.toInt()}",
                     selected = calorieGoal == preset,
                     onClick = { onCalorieGoalChanged(preset) },
                     modifier = Modifier.weight(1f),
@@ -402,7 +402,7 @@ private fun GoalsStep(
 @Composable
 private fun MacrosStep(
     macroDistribution: com.tracky.app.domain.model.MacroDistribution,
-    calorieGoal: Int,
+    calorieGoal: Float,
     onEditMacros: () -> Unit
 ) {
     val carbsG = (calorieGoal * macroDistribution.carbsPct / 100f) / 4f

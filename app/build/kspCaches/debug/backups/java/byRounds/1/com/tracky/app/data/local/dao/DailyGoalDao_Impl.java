@@ -56,7 +56,7 @@ public final class DailyGoalDao_Impl implements DailyGoalDao {
           @NonNull final DailyGoalEntity entity) {
         statement.bindLong(1, entity.getId());
         statement.bindString(2, entity.getEffectiveFromDate());
-        statement.bindLong(3, entity.getCalorieGoalKcal());
+        statement.bindDouble(3, entity.getCalorieGoalKcal());
         statement.bindLong(4, entity.getCarbsPct());
         statement.bindLong(5, entity.getProteinPct());
         statement.bindLong(6, entity.getFatPct());
@@ -78,7 +78,7 @@ public final class DailyGoalDao_Impl implements DailyGoalDao {
           @NonNull final DailyGoalEntity entity) {
         statement.bindLong(1, entity.getId());
         statement.bindString(2, entity.getEffectiveFromDate());
-        statement.bindLong(3, entity.getCalorieGoalKcal());
+        statement.bindDouble(3, entity.getCalorieGoalKcal());
         statement.bindLong(4, entity.getCarbsPct());
         statement.bindLong(5, entity.getProteinPct());
         statement.bindLong(6, entity.getFatPct());
@@ -193,8 +193,8 @@ public final class DailyGoalDao_Impl implements DailyGoalDao {
             _tmpId = _cursor.getLong(_cursorIndexOfId);
             final String _tmpEffectiveFromDate;
             _tmpEffectiveFromDate = _cursor.getString(_cursorIndexOfEffectiveFromDate);
-            final int _tmpCalorieGoalKcal;
-            _tmpCalorieGoalKcal = _cursor.getInt(_cursorIndexOfCalorieGoalKcal);
+            final float _tmpCalorieGoalKcal;
+            _tmpCalorieGoalKcal = _cursor.getFloat(_cursorIndexOfCalorieGoalKcal);
             final int _tmpCarbsPct;
             _tmpCarbsPct = _cursor.getInt(_cursorIndexOfCarbsPct);
             final int _tmpProteinPct;
@@ -261,8 +261,8 @@ public final class DailyGoalDao_Impl implements DailyGoalDao {
             _tmpId = _cursor.getLong(_cursorIndexOfId);
             final String _tmpEffectiveFromDate;
             _tmpEffectiveFromDate = _cursor.getString(_cursorIndexOfEffectiveFromDate);
-            final int _tmpCalorieGoalKcal;
-            _tmpCalorieGoalKcal = _cursor.getInt(_cursorIndexOfCalorieGoalKcal);
+            final float _tmpCalorieGoalKcal;
+            _tmpCalorieGoalKcal = _cursor.getFloat(_cursorIndexOfCalorieGoalKcal);
             final int _tmpCarbsPct;
             _tmpCarbsPct = _cursor.getInt(_cursorIndexOfCarbsPct);
             final int _tmpProteinPct;
@@ -320,8 +320,8 @@ public final class DailyGoalDao_Impl implements DailyGoalDao {
             _tmpId = _cursor.getLong(_cursorIndexOfId);
             final String _tmpEffectiveFromDate;
             _tmpEffectiveFromDate = _cursor.getString(_cursorIndexOfEffectiveFromDate);
-            final int _tmpCalorieGoalKcal;
-            _tmpCalorieGoalKcal = _cursor.getInt(_cursorIndexOfCalorieGoalKcal);
+            final float _tmpCalorieGoalKcal;
+            _tmpCalorieGoalKcal = _cursor.getFloat(_cursorIndexOfCalorieGoalKcal);
             final int _tmpCarbsPct;
             _tmpCarbsPct = _cursor.getInt(_cursorIndexOfCarbsPct);
             final int _tmpProteinPct;
@@ -376,8 +376,8 @@ public final class DailyGoalDao_Impl implements DailyGoalDao {
             _tmpId = _cursor.getLong(_cursorIndexOfId);
             final String _tmpEffectiveFromDate;
             _tmpEffectiveFromDate = _cursor.getString(_cursorIndexOfEffectiveFromDate);
-            final int _tmpCalorieGoalKcal;
-            _tmpCalorieGoalKcal = _cursor.getInt(_cursorIndexOfCalorieGoalKcal);
+            final float _tmpCalorieGoalKcal;
+            _tmpCalorieGoalKcal = _cursor.getFloat(_cursorIndexOfCalorieGoalKcal);
             final int _tmpCarbsPct;
             _tmpCarbsPct = _cursor.getInt(_cursorIndexOfCarbsPct);
             final int _tmpProteinPct;

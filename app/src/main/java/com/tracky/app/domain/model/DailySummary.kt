@@ -6,8 +6,8 @@ package com.tracky.app.domain.model
 data class DailySummary(
     val date: String,
     val goal: DailyGoal?,
-    val foodCalories: Int,
-    val exerciseCalories: Int,
+    val foodCalories: Float,
+    val exerciseCalories: Float,
     val carbsConsumedG: Float,
     val proteinConsumedG: Float,
     val fatConsumedG: Float,
@@ -18,15 +18,15 @@ data class DailySummary(
      * Remaining calories formula per PRD:
      * remaining = calorie_goal - food_kcal + exercise_kcal
      */
-    val remainingCalories: Int
-        get() = (goal?.calorieGoalKcal ?: 0) - foodCalories + exerciseCalories
+    val remainingCalories: Float
+        get() = (goal?.calorieGoalKcal ?: 0f) - foodCalories + exerciseCalories
 
     /**
      * Progress toward calorie goal (0.0 to 1.0+)
      */
     val calorieProgress: Float
         get() = if (goal != null && goal.calorieGoalKcal > 0) {
-            foodCalories.toFloat() / goal.calorieGoalKcal
+            foodCalories / goal.calorieGoalKcal
         } else 0f
 
     /**

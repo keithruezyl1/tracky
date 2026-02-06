@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
@@ -15,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
@@ -22,24 +24,21 @@ import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
 import com.patrykandpatrick.vico.compose.common.of
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
+import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.core.common.Dimensions
-import com.patrykandpatrick.vico.core.common.shader.DynamicShader
 import com.tracky.app.domain.model.WeightEntry
 import com.tracky.app.ui.theme.TrackyColors
+import com.patrykandpatrick.vico.compose.common.fill
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.UUID
 
 /**
  * Weight Chart Component
  * 
  * Displays weight progress over time using Vico chart library.
- * Features:
- * - Gradient-filled area chart
- * - Light/dark mode support
- * - Entry animation (lines animate from bottom on every screen visit)
+ * Uses blue gradient fill per design guidelines.
  */
 @Composable
 fun WeightChart(
@@ -47,17 +46,17 @@ fun WeightChart(
     targetWeightKg: Float,
     modifier: Modifier = Modifier
 ) {
-    // Generate unique key on every composition to trigger animation
-    val animationKey = remember { UUID.randomUUID().toString() }
+    // Use entries content as the animation trigger key
+    val entriesKey = remember(entries) { entries.map { it.id to it.weightKg }.hashCode() }
     
     // Model producer for chart data
-    val modelProducer = remember { CartesianChartModelProducer.build() }
+    val modelProducer = remember { CartesianChartModelProducer() }
     
     // Animation state for Y-values
     val animationProgress = remember { Animatable(0f) }
     
-    // Prepare chart data with animation
-    LaunchedEffect(entries, animationKey) {
+    // Prepare chart data with animation - trigger on entries content change
+    LaunchedEffect(entriesKey) {
         // Reset animation
         animationProgress.snapTo(0f)
         
@@ -71,10 +70,10 @@ fun WeightChart(
     }
     
     // Update model when entries or animation progress changes
-    LaunchedEffect(entries, animationProgress.value) {
+    LaunchedEffect(entriesKey, animationProgress.value) {
         withContext(Dispatchers.Default) {
             if (entries.isEmpty()) {
-                modelProducer.tryRunTransaction {
+                modelProducer.runTransaction {
                     lineSeries { series(emptyList<Float>()) }
                 }
             } else {
@@ -87,15 +86,28 @@ fun WeightChart(
                     minWeight + (entry.weightKg - minWeight) * animationProgress.value
                 }
                 
-                modelProducer.tryRunTransaction {
+                modelProducer.runTransaction {
                     lineSeries { series(animatedWeights) }
                 }
             }
         }
     }
     
-    // Chart styling - simple line layer with gradient fill
-    val lineLayer = rememberLineCartesianLayer()
+    // Blue area fill under the line - per design guidelines using BrandPrimary
+    val areaFill = LineCartesianLayer.AreaFill.single(
+        fill(TrackyColors.BrandPrimary.copy(alpha = 0.3f))
+    )
+    
+    // Chart styling - line layer with blue gradient fill
+    val lineLayer = rememberLineCartesianLayer(
+        lineProvider = rememberLineCartesianLayerLineProvider(
+             rememberLine(
+                 fill = LineCartesianLayer.LineFill.single(fill(TrackyColors.BrandPrimary)),
+                 areaFill = areaFill,
+                 thickness = 2.dp
+             )
+        )
+    )
     
     // Axis styling
     val startAxis = rememberStartAxis(
@@ -120,8 +132,8 @@ fun WeightChart(
             // Format date labels
             if (entries.isEmpty()) return@rememberBottomAxis ""
             val index = value.toInt()
-            if (index in entries.indices) {
-                val sortedEntries = entries.sortedBy { it.timestamp }
+            val sortedEntries = entries.sortedBy { it.timestamp }
+            if (index in sortedEntries.indices) {
                 try {
                     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                     val date = dateFormat.parse(sortedEntries[index].date)
@@ -149,4 +161,13 @@ fun WeightChart(
             .fillMaxWidth()
             .height(200.dp)
     )
+}
+
+@Composable
+fun rememberLineCartesianLayerLineProvider(
+    line: com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer.Line
+): com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer.LineProvider {
+    return remember(line) {
+        com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer.LineProvider { _, _ -> line }
+    }
 }

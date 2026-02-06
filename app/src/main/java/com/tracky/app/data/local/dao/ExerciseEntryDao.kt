@@ -30,10 +30,10 @@ interface ExerciseEntryDao {
     fun getEntryByIdFlow(id: Long): Flow<ExerciseEntryWithItems?>
     
     @Query("SELECT SUM(totalCalories) FROM exercise_entries WHERE date = :date")
-    fun getTotalCaloriesBurnedForDate(date: String): Flow<Int?>
+    fun getTotalCaloriesBurnedForDate(date: String): Flow<Float?>
 
     @Query("SELECT SUM(totalCalories) FROM exercise_entries WHERE date >= :startDate AND date <= :endDate")
-    fun getTotalCaloriesBurnedBetween(startDate: String, endDate: String): Flow<Int?>
+    fun getTotalCaloriesBurnedBetween(startDate: String, endDate: String): Flow<Float?>
     
     @Insert
     suspend fun insert(entry: ExerciseEntryEntity): Long

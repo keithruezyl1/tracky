@@ -39,7 +39,7 @@ data class FoodEntryEntity(
     /**
      * Total calories for all items in this entry
      */
-    val totalCalories: Int,
+    val totalCalories: Float,
     
     /**
      * Total carbs in grams
@@ -126,7 +126,7 @@ data class FoodItemEntity(
     /**
      * Calories for this item
      */
-    val calories: Int,
+    val calories: Float,
     
     /**
      * Carbs in grams

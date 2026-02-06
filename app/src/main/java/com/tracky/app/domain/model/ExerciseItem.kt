@@ -11,7 +11,7 @@ data class ExerciseItem(
     val activityName: String,
     val durationMinutes: Int,
     val metValue: Float,
-    val caloriesBurned: Int,
+    val caloriesBurned: Float,
     val intensity: ExerciseIntensity?,
     val provenance: Provenance,
     val confidence: Float = 1.0f, // 0.0-1.0, default to 1.0 for backward compatibility

@@ -8,7 +8,7 @@ data class SavedEntry(
     val name: String,
     val entryType: SavedEntryType,
     val data: SavedEntryData,
-    val totalCalories: Int,
+    val totalCalories: Float,
     val useCount: Int,
     val lastUsedAt: Long?,
     val createdAt: Long,
@@ -49,7 +49,7 @@ data class SavedFoodItem(
     val name: String,
     val quantity: Float,
     val unit: String,
-    val calories: Int,
+    val calories: Float,
     val carbsG: Float,
     val proteinG: Float,
     val fatG: Float

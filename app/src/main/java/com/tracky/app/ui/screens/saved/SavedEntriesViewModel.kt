@@ -73,7 +73,7 @@ class SavedEntriesViewModel @Inject constructor(
                                 date = localDateTime.date.toString(),
                                 time = localDateTime.time.toString(),
                                 timestamp = timestamp,
-                                totalCalories = foodData.items.sumOf { it.calories },
+                                totalCalories = foodData.items.map { it.calories }.sum(),
                                 totalCarbsG = foodData.items.sumOf { it.carbsG.toDouble() }.toFloat(),
                                 totalProteinG = foodData.items.sumOf { it.proteinG.toDouble() }.toFloat(),
                                 totalFatG = foodData.items.sumOf { it.fatG.toDouble() }.toFloat(),
@@ -115,7 +115,7 @@ class SavedEntriesViewModel @Inject constructor(
                             val exerciseItems = exerciseData.items.mapIndexed { index, item ->
                                 // Calculate calories: MET * Weight (kg) * Duration (hr)
                                 val durationHours = item.durationMinutes / 60f
-                                val calories = (item.metValue * userWeightKg * durationHours).toInt()
+                                val calories = (item.metValue * userWeightKg * durationHours)
                                 
                                 ExerciseItem(
                                     activityName = item.activityName,
@@ -137,7 +137,7 @@ class SavedEntriesViewModel @Inject constructor(
                                 time = localDateTime.time.toString(),
                                 timestamp = timestamp,
                                 items = exerciseItems,
-                                totalCalories = exerciseItems.sumOf { it.caloriesBurned },
+                                totalCalories = exerciseItems.map { it.caloriesBurned }.sum(),
                                 totalDurationMinutes = exerciseItems.sumOf { it.durationMinutes },
                                 userWeightKg = userWeightKg,
                                 originalInput = "Saved: ${entry.name}",
@@ -239,7 +239,7 @@ private data class SavedFoodItemJson(
     val name: String,
     val quantity: Float,
     val unit: String,
-    val calories: Int,
+    val calories: Float,
     val carbsG: Float,
     val proteinG: Float,
     val fatG: Float
