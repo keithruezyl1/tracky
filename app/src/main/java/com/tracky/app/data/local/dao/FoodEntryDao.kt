@@ -92,6 +92,26 @@ interface FoodEntryDao {
     suspend fun deleteItemsForEntry(entryId: Long)
     
     // ─────────────────────────────────────────────────────────────────────────
+    // User History Search (for food resolution)
+    // ─────────────────────────────────────────────────────────────────────────
+    
+    /**
+     * Search user's historical food items for resolution matching
+     * Returns distinct food items ordered by confidence for lexical matching
+     */
+    @Query("""
+        SELECT DISTINCT 
+            id, foodEntryId, name, matchedName, quantity, unit, 
+            calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder
+        FROM food_items
+        WHERE (name LIKE '%' || :query || '%' OR matchedName LIKE '%' || :query || '%')
+          AND source != 'unresolved'
+        ORDER BY confidence DESC, id DESC
+        LIMIT :limit
+    """)
+    suspend fun searchUserHistory(query: String, limit: Int = 50): List<FoodItemEntity>
+    
+    // ─────────────────────────────────────────────────────────────────────────
     // Transactions
     // ─────────────────────────────────────────────────────────────────────────
     

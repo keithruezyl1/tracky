@@ -56,6 +56,7 @@ data class Provenance(
 enum class ProvenanceSource(val value: String) {
     DATASET("dataset"),
     USDA_FDC("usda_fdc"),
+    USER_HISTORY("user_history"),
     INTERNET("internet"),
     USER_OVERRIDE("user_override"),
     UNRESOLVED("unresolved");

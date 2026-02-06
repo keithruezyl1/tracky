@@ -35,11 +35,10 @@ import com.tracky.app.ui.theme.TrackyTokens
 /**
  * Entry Actions Bottom Sheet
  * 
- * Actions available per PRD:
+ * Actions available:
  * - Edit entry
  * - Adjust calories/macros (override)
  * - Change date/time
- * - Save entry template
  * - Delete
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,7 +48,6 @@ fun EntryActionsSheet(
     onEdit: () -> Unit,
     onAdjust: () -> Unit,
     onChangeDateTime: () -> Unit,
-    onSaveTemplate: () -> Unit,
     onDelete: () -> Unit
 ) {
     TrackyBottomSheet(
@@ -81,15 +79,6 @@ fun EntryActionsSheet(
                 onClick = {
                     onDismiss()
                     onChangeDateTime()
-                }
-            )
-
-            ActionItem(
-                icon = Icons.Outlined.Bookmark,
-                label = "Save as Template",
-                onClick = {
-                    onDismiss()
-                    onSaveTemplate()
                 }
             )
 
@@ -140,38 +129,7 @@ private fun ActionItem(
     }
 }
 
-/**
- * Save as Template Sheet
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SaveTemplateSheet(
-    suggestedName: String,
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit
-) {
-    var templateName by remember { mutableStateOf(suggestedName) }
 
-    TrackyBottomSheet(
-        onDismissRequest = onDismiss,
-        title = "Save as Template"
-    ) {
-        Column {
-            TrackyInput(
-                value = templateName,
-                onValueChange = { templateName = it },
-                label = "Template Name",
-                placeholder = "Enter a name for this template"
-            )
-
-            TrackySheetActions(
-                primaryText = "Save Template",
-                onPrimaryClick = { onSave(templateName) },
-                primaryEnabled = templateName.isNotBlank()
-            )
-        }
-    }
-}
 
 /**
  * Change Date/Time Sheet (simplified version)

@@ -72,7 +72,6 @@ fun EntryDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showEditSheet by remember { mutableStateOf(false) }
     var showActionsSheet by remember { mutableStateOf(false) }
-    var showSaveTemplateSheet by remember { mutableStateOf(false) }
     var showDateTimeSheet by remember { mutableStateOf(false) }
     var showAddItemSheet by remember { mutableStateOf(false) }
 
@@ -193,10 +192,6 @@ fun EntryDetailScreen(
                  showActionsSheet = false
                  showDateTimeSheet = true 
             },
-            onSaveTemplate = { 
-                 showActionsSheet = false
-                 showSaveTemplateSheet = true 
-            },
             onDelete = {
                 viewModel.deleteEntry()
                 onEntryDeleted()
@@ -241,21 +236,7 @@ fun EntryDetailScreen(
         )
     }
 
-    // Save template sheet
-    if (showSaveTemplateSheet) {
-        val suggestedName = uiState.foodEntry?.items?.firstOrNull()?.name
-            ?: uiState.exerciseEntry?.items?.firstOrNull()?.activityName
-            ?: "My Template"
 
-        SaveTemplateSheet(
-            suggestedName = suggestedName,
-            onDismiss = { showSaveTemplateSheet = false },
-            onSave = { name ->
-                viewModel.saveAsTemplate(name)
-                showSaveTemplateSheet = false
-            }
-        )
-    }
 
     // Change date/time sheet
     if (showDateTimeSheet) {

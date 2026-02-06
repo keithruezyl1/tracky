@@ -13,12 +13,13 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Repository for food dataset - implements dataset-first resolution
+ * Repository for food resolution with prioritized sources
  */
 @Singleton
 class FoodsRepository @Inject constructor(
     private val foodsDatasetDao: FoodsDatasetDao,
-    private val backendApi: TrackyBackendApi
+    private val backendApi: TrackyBackendApi,
+    private val userHistoryResolver: com.tracky.app.domain.resolver.UserHistoryResolver
 ) {
     /**
      * Search local dataset using FTS
@@ -40,44 +41,21 @@ class FoodsRepository @Inject constructor(
         return foodsDatasetDao.searchByName(query, limit)
     }
 
+
     /**
-     * Resolve food item using dataset-first approach
+     * Resolve food item with prioritized sources
      * 
-     * Priority:
-     * 1. Local dataset
-     * 2. USDA FDC via backend proxy
+     * Priority (for authoritative nutrition data):
+     * 1. USDA FDC (primary, authoritative)
+     * 2. User History (fallback for regional/custom foods)
+     * 3. Internet via SerpAPI (tertiary fallback)
      */
     suspend fun resolveFood(
         name: String,
         quantity: Float,
         unit: String
     ): ResolvedFoodResult {
-        // Step 1: Try local dataset first
-        val localMatch = searchLocalDataset(name, 1).firstOrNull()
-        
-        if (localMatch != null) {
-            val multiplier = calculateMultiplier(quantity, unit, localMatch)
-            return ResolvedFoodResult.Success(
-                FoodItem(
-                    name = name,
-                    matchedName = localMatch.name,
-                    quantity = quantity,
-                    unit = unit,
-                    calories = (localMatch.caloriesPerServing * multiplier),
-                    carbsG = localMatch.carbsPerServingG * multiplier,
-                    proteinG = localMatch.proteinPerServingG * multiplier,
-                    fatG = localMatch.fatPerServingG * multiplier,
-                    provenance = Provenance(
-                        source = ProvenanceSource.DATASET,
-                        sourceId = localMatch.id.toString(),
-                        confidence = 0.9f
-                    ),
-                    displayOrder = 0
-                )
-            )
-        }
-
-        // Step 2: Try USDA via backend
+        // Step 1: Try USDA via backend (authoritative, primary)
         try {
             val usdaResponse = backendApi.resolveFood(
                 ResolveFoodRequest(
@@ -99,7 +77,13 @@ class FoodsRepository @Inject constructor(
             // Log error but continue to next fallback
         }
 
-        // Step 3: Try Internet via backend
+        // Step 2: Try User History (fallback for regional/custom foods)
+        val historyMatch = userHistoryResolver.resolve(name, quantity, unit)
+        if (historyMatch != null) {
+            return ResolvedFoodResult.Success(historyMatch)
+        }
+
+        // Step 3: Try Internet via SerpAPI (tertiary fallback)
         try {
             val internetResponse = backendApi.resolveInternet(
                 ResolveFoodRequest(
@@ -121,7 +105,7 @@ class FoodsRepository @Inject constructor(
             // Log error but continue
         }
 
-        // Step 4: Return Unresolved (NOT User Override by default)
+        // Step 4: Return Unresolved
         return ResolvedFoodResult.Success(
             FoodItem(
                 name = name,

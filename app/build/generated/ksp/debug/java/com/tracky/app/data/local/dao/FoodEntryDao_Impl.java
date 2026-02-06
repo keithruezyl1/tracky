@@ -1115,6 +1115,98 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
     }, $completion);
   }
 
+  @Override
+  public Object searchUserHistory(final String query, final int limit,
+      final Continuation<? super List<FoodItemEntity>> $completion) {
+    final String _sql = "\n"
+            + "        SELECT DISTINCT \n"
+            + "            id, foodEntryId, name, matchedName, quantity, unit, \n"
+            + "            calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder\n"
+            + "        FROM food_items\n"
+            + "        WHERE (name LIKE '%' || ? || '%' OR matchedName LIKE '%' || ? || '%')\n"
+            + "          AND source != 'unresolved'\n"
+            + "        ORDER BY confidence DESC, id DESC\n"
+            + "        LIMIT ?\n"
+            + "    ";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 3);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, query);
+    _argIndex = 2;
+    _statement.bindString(_argIndex, query);
+    _argIndex = 3;
+    _statement.bindLong(_argIndex, limit);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<FoodItemEntity>>() {
+      @Override
+      @NonNull
+      public List<FoodItemEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = 0;
+          final int _cursorIndexOfFoodEntryId = 1;
+          final int _cursorIndexOfName = 2;
+          final int _cursorIndexOfMatchedName = 3;
+          final int _cursorIndexOfQuantity = 4;
+          final int _cursorIndexOfUnit = 5;
+          final int _cursorIndexOfCalories = 6;
+          final int _cursorIndexOfCarbsG = 7;
+          final int _cursorIndexOfProteinG = 8;
+          final int _cursorIndexOfFatG = 9;
+          final int _cursorIndexOfSource = 10;
+          final int _cursorIndexOfSourceId = 11;
+          final int _cursorIndexOfConfidence = 12;
+          final int _cursorIndexOfDisplayOrder = 13;
+          final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final FoodItemEntity _item;
+            final long _tmpId;
+            _tmpId = _cursor.getLong(_cursorIndexOfId);
+            final long _tmpFoodEntryId;
+            _tmpFoodEntryId = _cursor.getLong(_cursorIndexOfFoodEntryId);
+            final String _tmpName;
+            _tmpName = _cursor.getString(_cursorIndexOfName);
+            final String _tmpMatchedName;
+            if (_cursor.isNull(_cursorIndexOfMatchedName)) {
+              _tmpMatchedName = null;
+            } else {
+              _tmpMatchedName = _cursor.getString(_cursorIndexOfMatchedName);
+            }
+            final float _tmpQuantity;
+            _tmpQuantity = _cursor.getFloat(_cursorIndexOfQuantity);
+            final String _tmpUnit;
+            _tmpUnit = _cursor.getString(_cursorIndexOfUnit);
+            final float _tmpCalories;
+            _tmpCalories = _cursor.getFloat(_cursorIndexOfCalories);
+            final float _tmpCarbsG;
+            _tmpCarbsG = _cursor.getFloat(_cursorIndexOfCarbsG);
+            final float _tmpProteinG;
+            _tmpProteinG = _cursor.getFloat(_cursorIndexOfProteinG);
+            final float _tmpFatG;
+            _tmpFatG = _cursor.getFloat(_cursorIndexOfFatG);
+            final String _tmpSource;
+            _tmpSource = _cursor.getString(_cursorIndexOfSource);
+            final String _tmpSourceId;
+            if (_cursor.isNull(_cursorIndexOfSourceId)) {
+              _tmpSourceId = null;
+            } else {
+              _tmpSourceId = _cursor.getString(_cursorIndexOfSourceId);
+            }
+            final float _tmpConfidence;
+            _tmpConfidence = _cursor.getFloat(_cursorIndexOfConfidence);
+            final int _tmpDisplayOrder;
+            _tmpDisplayOrder = _cursor.getInt(_cursorIndexOfDisplayOrder);
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
   @NonNull
   public static List<Class<?>> getRequiredConverters() {
     return Collections.emptyList();
