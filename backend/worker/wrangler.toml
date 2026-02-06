@@ -1,0 +1,22 @@
+name = "tracky-worker"
+main = "src/index.ts"
+compatibility_date = "2024-02-01"
+
+[placement]
+mode = "smart"
+hint = "oc"
+
+
+
+
+# KV namespace for caching USDA responses
+[[kv_namespaces]]
+binding = "USDA_CACHE"
+id = "b2c59df7d53f4a08af61cccf3b56a377"
+
+# Environment variables (set via wrangler secret or dashboard)
+# OPENAI_API_KEY - set via `npx wrangler secret put OPENAI_API_KEY`
+# USDA_API_KEY - set via `npx wrangler secret put USDA_API_KEY`
+# SERP_API_KEY - set via `npx wrangler secret put SERP_API_KEY`
+[vars]
+ENVIRONMENT = "development"
