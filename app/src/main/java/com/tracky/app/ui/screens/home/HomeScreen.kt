@@ -13,6 +13,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,15 +23,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -59,8 +64,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -71,11 +74,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tracky.app.domain.model.ChatMessage
 import com.tracky.app.domain.model.ChatMessageType
@@ -104,6 +108,7 @@ import com.tracky.app.ui.components.TrackyDivider
 import com.tracky.app.ui.components.TrackyDraftingState
 import com.tracky.app.ui.components.TrackyEntryCard
 import com.tracky.app.ui.components.TrackyInput
+import com.tracky.app.ui.components.TrackyCircularMacroProgress
 import com.tracky.app.ui.components.TrackyMacrosRow
 import com.tracky.app.ui.components.TrackyScreenTitle
 import com.tracky.app.ui.components.TrackySheetActions
@@ -375,8 +380,7 @@ fun HomeScreen(
                                 proteinConsumed = uiState.currentSummary?.proteinConsumedG ?: 0f,
                                 proteinTarget = dayGoal?.proteinTargetG ?: currentGoal?.proteinTargetG ?: 0f,
                                 fatConsumed = uiState.currentSummary?.fatConsumedG ?: 0f,
-                                fatTarget = dayGoal?.fatTargetG ?: currentGoal?.fatTargetG ?: 0f,
-                                onClick = onNavigateToSummary
+                                fatTarget = dayGoal?.fatTargetG ?: currentGoal?.fatTargetG ?: 0f
                             )
                         }
                     }
@@ -582,7 +586,7 @@ fun HomeScreen(
                 item = item,
                 onDismiss = { editingFoodIndex = null },
                 onSave = { name, quantity, unit ->
-                    viewModel.updateFoodDraftItem(index, name, quantity, unit)
+                    viewModel.updateFoodDraftItem(0L, index, name, quantity, unit)
                     editingFoodIndex = null
                 }
             )
@@ -600,7 +604,7 @@ fun HomeScreen(
                 item = item,
                 onDismiss = { editingExerciseIndex = null },
                 onSave = { activity, duration ->
-                    viewModel.updateExerciseDraftItem(index, activity, duration)
+                    viewModel.updateExerciseDraftItem(0L, index, activity, duration)
                     editingExerciseIndex = null
                 }
             )
@@ -686,20 +690,37 @@ private fun MacrosCard(
     proteinConsumed: Float,
     proteinTarget: Float,
     fatConsumed: Float,
-    fatTarget: Float,
-    onClick: () -> Unit = {}
+    fatTarget: Float
 ) {
-    TrackyCard(onClick = onClick) {
-        TrackyCardTitle(text = "Macros")
-        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-        TrackyMacrosRow(
-            carbsConsumed = carbsConsumed,
-            carbsTarget = carbsTarget,
-            proteinConsumed = proteinConsumed,
-            proteinTarget = proteinTarget,
-            fatConsumed = fatConsumed,
-            fatTarget = fatTarget
-        )
+    TrackyCard(onClick = {}) { // Non-clickable
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            TrackyCircularMacroProgress(
+                label = "Carbs",
+                consumed = carbsConsumed,
+                target = carbsTarget,
+                color = TrackyColors.Success, // Green
+                modifier = Modifier.weight(1f)
+            )
+            
+            TrackyCircularMacroProgress(
+                label = "Protein",
+                consumed = proteinConsumed,
+                target = proteinTarget,
+                color = TrackyColors.Warning, // Red/Orange
+                modifier = Modifier.weight(1f)
+            )
+            
+            TrackyCircularMacroProgress(
+                label = "Fat",
+                consumed = fatConsumed,
+                target = fatTarget,
+                color = Color(0xFFFFD60A), // Yellow
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -739,8 +760,6 @@ private fun FoodDraftCard(
                 color = TrackyColors.BrandPrimary
             )
         }
-
-
 
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
 
@@ -880,7 +899,10 @@ private fun ExerciseEntryRow(
                 )
                 Spacer(modifier = Modifier.width(TrackyTokens.Spacing.S))
                 Column {
-                    TrackyBodyText(text = entry.activityName, maxLines = 1)
+                    TrackyBodyText(
+                        text = entry.activityName.lowercase().replaceFirstChar { it.uppercase() },
+                        maxLines = 1
+                    )
                     TrackyBodySmall(
                         text = "${entry.durationMinutes} min",
                         color = TrackyColors.TextTertiary
@@ -1081,6 +1103,7 @@ private fun ChatMessageRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ComposerBar(
     inputText: String,
@@ -1089,9 +1112,11 @@ fun ComposerBar(
     onCameraClick: () -> Unit,
     onGalleryClick: () -> Unit
 ) {
+    val isImeVisible = WindowInsets.isImeVisible
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(bottom = if (isImeVisible) TrackyTokens.Spacing.XXS else 0.dp)
             .background(TrackyColors.Surface)
 
             .padding(TrackyTokens.Spacing.S)

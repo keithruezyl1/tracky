@@ -18,7 +18,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tracky.app.ui.theme.TrackyColors
@@ -40,6 +42,7 @@ fun TrackyProgress(
     modifier: Modifier = Modifier,
     height: Dp = 8.dp,
     showWarning: Boolean = false,
+    gradient: Brush? = null,
     animated: Boolean = true
 ) {
     val animatedProgress by animateFloatAsState(
@@ -61,15 +64,25 @@ fun TrackyProgress(
             .fillMaxWidth()
             .height(height)
             .clip(TrackyShapes.Pill)
-            .background(TrackyColors.Neutral100)
+            .background(TrackyColors.Neutral200.copy(alpha = 0.4f))
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(animatedProgress)
-                .clip(TrackyShapes.Pill)
-                .background(fillColor)
-        )
+        if (gradient != null && !showWarning) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(animatedProgress)
+                    .clip(TrackyShapes.Pill)
+                    .background(gradient)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(animatedProgress)
+                    .clip(TrackyShapes.Pill)
+                    .background(fillColor)
+            )
+        }
     }
 }
 
@@ -126,7 +139,13 @@ fun TrackyCaloriesProgress(
 
         TrackyProgress(
             progress = progress,
-            showWarning = isOverGoal
+            showWarning = isOverGoal,
+            gradient = Brush.horizontalGradient(
+                listOf(
+                    TrackyColors.BrandPrimary,
+                    TrackyColors.BrandTint
+                )
+            )
         )
 
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))

@@ -2,6 +2,8 @@ package com.tracky.app.domain.model
 
 import kotlinx.serialization.Serializable
 
+import kotlinx.datetime.LocalDate
+
 sealed class DraftData {
     data class FoodDraft(
         val items: List<DraftFoodItem>,
@@ -9,13 +11,15 @@ sealed class DraftData {
         val totalCarbsG: Float,
         val totalProteinG: Float,
         val totalFatG: Float,
-        val narrative: String?
+        val narrative: String?,
+        val date: LocalDate
     ) : DraftData()
 
     data class ExerciseDraft(
         val items: List<DraftExerciseItem>,
         val totalCalories: Int,
-        val totalDurationMinutes: Int
+        val totalDurationMinutes: Int,
+        val date: LocalDate
     ) : DraftData()
 }
 

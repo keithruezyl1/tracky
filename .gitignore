@@ -1,0 +1,24 @@
+# Android / IntelliJ
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+*.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Kotlin
+.kotlin/
+
+# Node.js / JavaScript
+node_modules/
+npm-debug.log
+yarn-error.log
+.env
+.env.local
+.env.*.local
+
+# Cloudflare Wrangler
+.wrangler/

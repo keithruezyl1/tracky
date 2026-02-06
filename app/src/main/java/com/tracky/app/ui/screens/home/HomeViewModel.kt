@@ -116,8 +116,7 @@ class HomeViewModel @Inject constructor(
     private fun observeSelectedDateChanges() {
         viewModelScope.launch {
             _selectedDate.collect { date ->
-                // Clear any active draft when changing dates to avoid confusion
-                draftLoggingInteractor.cancelDraft()
+                // Do NOT cancel drafts when changing dates (Persistence Fix)
                 loadDailySummary(date)
             }
         }
@@ -241,7 +240,7 @@ class HomeViewModel @Inject constructor(
             chatRepository.addUserTextMessage(date, text)
 
             _uiState.update { it.copy(inputText = "") }
-            draftLoggingInteractor.draftAutoFromText(text)
+            draftLoggingInteractor.draftAutoFromText(text, _selectedDate.value)
         }
     }
 
@@ -252,7 +251,7 @@ class HomeViewModel @Inject constructor(
             chatRepository.addUserTextMessage(date, text)
 
             _uiState.update { it.copy(inputText = "") }
-            draftLoggingInteractor.draftFoodFromText(text)
+            draftLoggingInteractor.draftFoodFromText(text, _selectedDate.value)
         }
     }
 
@@ -266,7 +265,7 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             } else {
-                draftLoggingInteractor.draftFoodFromImage(imageBase64)
+                draftLoggingInteractor.draftFoodFromImage(imageBase64, _selectedDate.value)
             }
         }
     }
@@ -278,7 +277,7 @@ class HomeViewModel @Inject constructor(
             chatRepository.addUserTextMessage(date, text)
 
             _uiState.update { it.copy(inputText = "") }
-            draftLoggingInteractor.draftExerciseFromText(text)
+            draftLoggingInteractor.draftExerciseFromText(text, _selectedDate.value)
         }
     }
 
@@ -312,19 +311,19 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun cancelDraft() {
-        draftLoggingInteractor.cancelDraft()
+    fun cancelDraft(draftId: Long? = null) {
+        draftLoggingInteractor.cancelDraft(draftId)
     }
 
-    fun updateFoodDraftItem(index: Int, name: String, quantity: Double, unit: String) {
+    fun updateFoodDraftItem(draftId: Long, index: Int, name: String, quantity: Double, unit: String) {
         viewModelScope.launch {
-            draftLoggingInteractor.updateFoodDraftItem(index, name, quantity, unit)
+            draftLoggingInteractor.updateFoodDraftItem(draftId, index, name, quantity, unit)
         }
     }
 
-    fun updateExerciseDraftItem(index: Int, activity: String, durationMinutes: Int) {
+    fun updateExerciseDraftItem(draftId: Long, index: Int, activity: String, durationMinutes: Int) {
         viewModelScope.launch {
-            draftLoggingInteractor.updateExerciseDraftItem(index, activity, durationMinutes)
+            draftLoggingInteractor.updateExerciseDraftItem(draftId, index, activity, durationMinutes)
         }
     }
 
@@ -364,7 +363,7 @@ class HomeViewModel @Inject constructor(
                 chatRepository.addUserTextMessage(date, "Re-analyzed: $newText")
                 
                 // Start drafting with the new text
-                draftLoggingInteractor.draftFoodFromText(newText)
+                draftLoggingInteractor.draftFoodFromText(newText, _selectedDate.value)
                 
                 // Refresh the summary
                 loadDailySummary(_selectedDate.value)

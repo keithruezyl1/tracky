@@ -6,6 +6,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import com.tracky.app.ui.screens.home.HomeScreen
 import com.tracky.app.ui.screens.onboarding.OnboardingScreen
 import com.tracky.app.ui.screens.goals.DailyGoalsScreen
@@ -77,7 +80,13 @@ fun TrackyNavHost(
         }
 
         // Daily Goals
-        composable(TrackyRoutes.DAILY_GOALS) {
+        composable(
+            route = TrackyRoutes.DAILY_GOALS,
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { -it }) },
+            popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) },
+            popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
+        ) {
             DailyGoalsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
@@ -86,7 +95,13 @@ fun TrackyNavHost(
         }
 
         // Weight Tracker
-        composable(TrackyRoutes.WEIGHT_TRACKER) {
+        composable(
+            route = TrackyRoutes.WEIGHT_TRACKER,
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { -it }) },
+            popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) },
+            popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
+        ) {
             WeightTrackerScreen(
                 onNavigateBack = {
                     navController.popBackStack()
@@ -95,7 +110,13 @@ fun TrackyNavHost(
         }
 
         // Summary
-        composable(TrackyRoutes.SUMMARY) {
+        composable(
+            route = TrackyRoutes.SUMMARY,
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { -it }) },
+            popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) },
+            popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
+        ) {
             SummaryScreen(
                 onNavigateBack = {
                     navController.popBackStack()
@@ -109,7 +130,11 @@ fun TrackyNavHost(
             arguments = listOf(
                 navArgument("entryId") { type = NavType.LongType },
                 navArgument("entryType") { type = NavType.StringType }
-            )
+            ),
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { -it }) },
+            popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) },
+            popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
         ) { backStackEntry ->
             val entryId = backStackEntry.arguments?.getLong("entryId") ?: 0L
             val entryType = backStackEntry.arguments?.getString("entryType") ?: "food"
@@ -127,7 +152,13 @@ fun TrackyNavHost(
         }
 
         // Saved Entries
-        composable(TrackyRoutes.SAVED_ENTRIES) {
+        composable(
+            route = TrackyRoutes.SAVED_ENTRIES,
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { -it }) },
+            popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) },
+            popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
+        ) {
             SavedEntriesScreen(
                 onNavigateBack = {
                     navController.popBackStack()
@@ -136,7 +167,13 @@ fun TrackyNavHost(
         }
 
         // Settings
-        composable(TrackyRoutes.SETTINGS) {
+        composable(
+            route = TrackyRoutes.SETTINGS,
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { -it }) },
+            popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) },
+            popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
+        ) {
             SettingsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
