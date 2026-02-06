@@ -6,6 +6,8 @@ import com.tracky.app.data.remote.TrackyBackendApi;
 import com.tracky.app.data.repository.FoodsRepository;
 import com.tracky.app.data.repository.LoggingRepository;
 import com.tracky.app.data.repository.ProfileRepository;
+import com.tracky.app.ui.haptics.HapticManager;
+import com.tracky.app.ui.sound.SoundManager;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.QualifierMetadata;
@@ -40,23 +42,30 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
 
   private final Provider<ProfileRepository> profileRepositoryProvider;
 
+  private final Provider<SoundManager> soundManagerProvider;
+
+  private final Provider<HapticManager> hapticManagerProvider;
+
   public EntryDetailViewModel_Factory(Provider<SavedStateHandle> savedStateHandleProvider,
       Provider<LoggingRepository> loggingRepositoryProvider,
       Provider<SavedEntryDao> savedEntryDaoProvider,
       Provider<FoodsRepository> foodsRepositoryProvider,
       Provider<TrackyBackendApi> backendApiProvider,
-      Provider<ProfileRepository> profileRepositoryProvider) {
+      Provider<ProfileRepository> profileRepositoryProvider,
+      Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider) {
     this.savedStateHandleProvider = savedStateHandleProvider;
     this.loggingRepositoryProvider = loggingRepositoryProvider;
     this.savedEntryDaoProvider = savedEntryDaoProvider;
     this.foodsRepositoryProvider = foodsRepositoryProvider;
     this.backendApiProvider = backendApiProvider;
     this.profileRepositoryProvider = profileRepositoryProvider;
+    this.soundManagerProvider = soundManagerProvider;
+    this.hapticManagerProvider = hapticManagerProvider;
   }
 
   @Override
   public EntryDetailViewModel get() {
-    return newInstance(savedStateHandleProvider.get(), loggingRepositoryProvider.get(), savedEntryDaoProvider.get(), foodsRepositoryProvider.get(), backendApiProvider.get(), profileRepositoryProvider.get());
+    return newInstance(savedStateHandleProvider.get(), loggingRepositoryProvider.get(), savedEntryDaoProvider.get(), foodsRepositoryProvider.get(), backendApiProvider.get(), profileRepositoryProvider.get(), soundManagerProvider.get(), hapticManagerProvider.get());
   }
 
   public static EntryDetailViewModel_Factory create(
@@ -65,14 +74,15 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
       Provider<SavedEntryDao> savedEntryDaoProvider,
       Provider<FoodsRepository> foodsRepositoryProvider,
       Provider<TrackyBackendApi> backendApiProvider,
-      Provider<ProfileRepository> profileRepositoryProvider) {
-    return new EntryDetailViewModel_Factory(savedStateHandleProvider, loggingRepositoryProvider, savedEntryDaoProvider, foodsRepositoryProvider, backendApiProvider, profileRepositoryProvider);
+      Provider<ProfileRepository> profileRepositoryProvider,
+      Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider) {
+    return new EntryDetailViewModel_Factory(savedStateHandleProvider, loggingRepositoryProvider, savedEntryDaoProvider, foodsRepositoryProvider, backendApiProvider, profileRepositoryProvider, soundManagerProvider, hapticManagerProvider);
   }
 
   public static EntryDetailViewModel newInstance(SavedStateHandle savedStateHandle,
       LoggingRepository loggingRepository, SavedEntryDao savedEntryDao,
       FoodsRepository foodsRepository, TrackyBackendApi backendApi,
-      ProfileRepository profileRepository) {
-    return new EntryDetailViewModel(savedStateHandle, loggingRepository, savedEntryDao, foodsRepository, backendApi, profileRepository);
+      ProfileRepository profileRepository, SoundManager soundManager, HapticManager hapticManager) {
+    return new EntryDetailViewModel(savedStateHandle, loggingRepository, savedEntryDao, foodsRepository, backendApi, profileRepository, soundManager, hapticManager);
   }
 }

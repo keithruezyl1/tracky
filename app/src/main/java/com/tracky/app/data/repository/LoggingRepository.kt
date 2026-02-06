@@ -61,11 +61,8 @@ class LoggingRepository @Inject constructor(
      * Update food entry
      */
     suspend fun updateFoodEntry(entry: FoodEntry) {
-        foodEntryDao.update(entry.toEntity())
-        // Update items
-        foodEntryDao.deleteItemsForEntry(entry.id)
         val itemEntities = entry.items.map { it.toEntity(entry.id) }
-        foodEntryDao.insertItems(itemEntities)
+        foodEntryDao.updateEntryWithItems(entry.toEntity(), itemEntities)
     }
 
     /**
@@ -113,14 +110,11 @@ class LoggingRepository @Inject constructor(
      * Update exercise entry
      */
     suspend fun updateExerciseEntry(entry: ExerciseEntry) {
-        exerciseEntryDao.update(entry.toEntity())
-        
         // Update items (replace-all strategy for simplicity)
-        exerciseEntryDao.deleteItemsForEntry(entry.id)
         val itemEntities = entry.items.mapIndexed { index, item ->
             item.toEntity(entry.id).copy(displayOrder = index)
         }
-        exerciseEntryDao.insertItems(itemEntities)
+        exerciseEntryDao.updateEntryWithItems(entry.toEntity(), itemEntities)
     }
 
     /**

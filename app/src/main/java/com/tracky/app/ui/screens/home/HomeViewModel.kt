@@ -40,7 +40,9 @@ class HomeViewModel @Inject constructor(
     private val goalRepository: GoalRepository,
     private val draftLoggingInteractor: DraftLoggingInteractor,
     private val chatRepository: ChatRepository,
-    private val preferencesDataStore: UserPreferencesDataStore
+    private val preferencesDataStore: UserPreferencesDataStore,
+    private val soundManager: com.tracky.app.ui.sound.SoundManager,
+    private val hapticManager: com.tracky.app.ui.haptics.HapticManager
 ) : ViewModel() {
 
     private val stripDays = 6
@@ -51,7 +53,23 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    val draftState: StateFlow<DraftState> = draftLoggingInteractor.draftState
+    private val _showSuccessOverlay = MutableStateFlow(false)
+    val showSuccessOverlay: StateFlow<Boolean> = _showSuccessOverlay.asStateFlow()
+
+    fun dismissSuccessOverlay() {
+        _showSuccessOverlay.value = false
+    }
+
+    val draftState: StateFlow<DraftState> = kotlinx.coroutines.flow.combine(
+        draftLoggingInteractor.draftState,
+        _selectedDate
+    ) { draft, date ->
+        when (draft) {
+            is DraftState.FoodDraft -> if (draft.data.date == date) draft else DraftState.Idle
+            is DraftState.ExerciseDraft -> if (draft.data.date == date) draft else DraftState.Idle
+            else -> draft
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DraftState.Idle)
 
     // Chat messages for the currently selected date
     val chatMessages: StateFlow<List<ChatMessage>> = _selectedDate
@@ -93,6 +111,25 @@ class HomeViewModel @Inject constructor(
         observeSelectedDateChanges()
         observePhotoPreference()
         loadWeekSummaries()
+        monitorGlobalDraftState()
+        observeHapticsPreference()
+    }
+
+    private fun monitorGlobalDraftState() {
+        viewModelScope.launch {
+            draftLoggingInteractor.draftState.collect { globalState ->
+                if (globalState is DraftState.Idle || globalState is DraftState.Drafting) {
+                    _uiState.update { it.copy(shouldAnimateDraft = true) }
+                }
+            }
+        }
+    }
+
+    fun onDraftAppeared() {
+        if (_uiState.value.shouldAnimateDraft) {
+            soundManager.playPop()
+            _uiState.update { it.copy(shouldAnimateDraft = false) }
+        }
     }
 
     private var weekSummariesJob: Job? = null
@@ -141,6 +178,14 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             preferencesDataStore.storePhotosLocally.collect { store ->
                 _uiState.update { it.copy(storePhotosLocally = store) }
+            }
+        }
+    }
+
+    private fun observeHapticsPreference() {
+        viewModelScope.launch {
+            preferencesDataStore.hapticsEnabled.collect { enabled ->
+                _uiState.update { it.copy(hapticsEnabled = enabled) }
             }
         }
     }
@@ -210,6 +255,8 @@ class HomeViewModel @Inject constructor(
     fun deleteFoodEntry(entryId: Long) {
         viewModelScope.launch {
             loggingRepository.deleteFoodEntry(entryId)
+            soundManager.playCrumple()
+            hapticManager.vibrateSoft()
             loadDailySummary(_selectedDate.value)
             loadWeekSummaries()
         }
@@ -221,6 +268,8 @@ class HomeViewModel @Inject constructor(
     fun deleteExerciseEntry(entryId: Long) {
         viewModelScope.launch {
             loggingRepository.deleteExerciseEntry(entryId)
+            soundManager.playCrumple()
+            hapticManager.vibrateSoft()
             loadDailySummary(_selectedDate.value)
             loadWeekSummaries()
         }
@@ -285,6 +334,9 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             when (val result = draftLoggingInteractor.confirmFoodDraft(draft, _selectedDate.value)) {
                 is ConfirmResult.Success -> {
+                    soundManager.playDing()
+                    hapticManager.vibrateSuccess()
+                    _showSuccessOverlay.value = true
                     // Refresh summary and week summaries
                     loadDailySummary(_selectedDate.value)
                     loadWeekSummaries()
@@ -300,6 +352,9 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             when (val result = draftLoggingInteractor.confirmExerciseDraft(draft, _selectedDate.value)) {
                 is ConfirmResult.Success -> {
+                    soundManager.playDing()
+                    hapticManager.vibrateSuccess()
+                    _showSuccessOverlay.value = true
                     // Refresh summary and week summaries
                     loadDailySummary(_selectedDate.value)
                     loadWeekSummaries()
@@ -386,7 +441,9 @@ data class HomeUiState(
     val inputText: String = "",
     val inputMode: InputMode = InputMode.FOOD,
     val error: String? = null,
-    val storePhotosLocally: Boolean = true
+    val storePhotosLocally: Boolean = true,
+    val shouldAnimateDraft: Boolean = true,
+    val hapticsEnabled: Boolean = true
 )
 
 enum class InputMode {

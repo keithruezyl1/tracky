@@ -49,6 +49,11 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update { it.copy(darkModeEnabled = enabled) }
                 }
             }
+            launch {
+                preferencesDataStore.hapticsEnabled.collect { enabled ->
+                    _uiState.update { it.copy(hapticsEnabled = enabled) }
+                }
+            }
         }
     }
 
@@ -67,6 +72,12 @@ class SettingsViewModel @Inject constructor(
     fun setDarkModeEnabled(enabled: Boolean) {
         viewModelScope.launch {
             preferencesDataStore.setDarkModeEnabled(enabled)
+        }
+    }
+
+    fun setHapticsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataStore.setHapticsEnabled(enabled)
         }
     }
 
@@ -103,7 +114,8 @@ class SettingsViewModel @Inject constructor(
 data class SettingsUiState(
     val unitPreference: UnitPreference = UnitPreference.METRIC,
     val storePhotosLocally: Boolean = true,
-    val darkModeEnabled: Boolean = false,  // Default to light mode
+    val darkModeEnabled: Boolean = false,
+    val hapticsEnabled: Boolean = true,
     val showResetConfirmation: Boolean = false,
     val isResetting: Boolean = false
 )

@@ -521,7 +521,7 @@ class DraftLoggingInteractor @Inject constructor(
         if (current is DraftState.FoodDraft) {
             val items = current.data.items.toMutableList()
             if (index in items.indices) {
-                items[index] = items[index].copy(name = name, quantity = quantity, unit = unit)
+                items[index] = items[index].copy(name = sentenceCase(name), quantity = quantity, unit = unit)
                 _draftState.value = DraftState.FoodDraft(current.data.copy(items = items))
             }
         }
@@ -532,7 +532,7 @@ class DraftLoggingInteractor @Inject constructor(
         if (current is DraftState.ExerciseDraft) {
             val items = current.data.items.toMutableList()
             if (index in items.indices) {
-                items[index] = items[index].copy(activity = activity, durationMinutes = durationMinutes)
+                items[index] = items[index].copy(activity = sentenceCase(activity), durationMinutes = durationMinutes)
                 _draftState.value = DraftState.ExerciseDraft(current.data.copy(items = items))
             }
         }

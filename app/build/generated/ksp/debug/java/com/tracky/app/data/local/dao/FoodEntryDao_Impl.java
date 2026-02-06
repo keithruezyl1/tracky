@@ -387,6 +387,12 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
   }
 
   @Override
+  public Object updateEntryWithItems(final FoodEntryEntity entry, final List<FoodItemEntity> items,
+      final Continuation<? super Unit> $completion) {
+    return RoomDatabaseKt.withTransaction(__db, (__cont) -> FoodEntryDao.DefaultImpls.updateEntryWithItems(FoodEntryDao_Impl.this, entry, items, __cont), $completion);
+  }
+
+  @Override
   public Object deleteById(final long id, final Continuation<? super Unit> $completion) {
     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
       @Override

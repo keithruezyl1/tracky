@@ -6,6 +6,8 @@ import com.tracky.app.data.repository.GoalRepository;
 import com.tracky.app.data.repository.LoggingRepository;
 import com.tracky.app.data.repository.ProfileRepository;
 import com.tracky.app.domain.usecase.DraftLoggingInteractor;
+import com.tracky.app.ui.haptics.HapticManager;
+import com.tracky.app.ui.sound.SoundManager;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
 import dagger.internal.QualifierMetadata;
@@ -40,23 +42,30 @@ public final class HomeViewModel_Factory implements Factory<HomeViewModel> {
 
   private final Provider<UserPreferencesDataStore> preferencesDataStoreProvider;
 
+  private final Provider<SoundManager> soundManagerProvider;
+
+  private final Provider<HapticManager> hapticManagerProvider;
+
   public HomeViewModel_Factory(Provider<LoggingRepository> loggingRepositoryProvider,
       Provider<ProfileRepository> profileRepositoryProvider,
       Provider<GoalRepository> goalRepositoryProvider,
       Provider<DraftLoggingInteractor> draftLoggingInteractorProvider,
       Provider<ChatRepository> chatRepositoryProvider,
-      Provider<UserPreferencesDataStore> preferencesDataStoreProvider) {
+      Provider<UserPreferencesDataStore> preferencesDataStoreProvider,
+      Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider) {
     this.loggingRepositoryProvider = loggingRepositoryProvider;
     this.profileRepositoryProvider = profileRepositoryProvider;
     this.goalRepositoryProvider = goalRepositoryProvider;
     this.draftLoggingInteractorProvider = draftLoggingInteractorProvider;
     this.chatRepositoryProvider = chatRepositoryProvider;
     this.preferencesDataStoreProvider = preferencesDataStoreProvider;
+    this.soundManagerProvider = soundManagerProvider;
+    this.hapticManagerProvider = hapticManagerProvider;
   }
 
   @Override
   public HomeViewModel get() {
-    return newInstance(loggingRepositoryProvider.get(), profileRepositoryProvider.get(), goalRepositoryProvider.get(), draftLoggingInteractorProvider.get(), chatRepositoryProvider.get(), preferencesDataStoreProvider.get());
+    return newInstance(loggingRepositoryProvider.get(), profileRepositoryProvider.get(), goalRepositoryProvider.get(), draftLoggingInteractorProvider.get(), chatRepositoryProvider.get(), preferencesDataStoreProvider.get(), soundManagerProvider.get(), hapticManagerProvider.get());
   }
 
   public static HomeViewModel_Factory create(Provider<LoggingRepository> loggingRepositoryProvider,
@@ -64,14 +73,16 @@ public final class HomeViewModel_Factory implements Factory<HomeViewModel> {
       Provider<GoalRepository> goalRepositoryProvider,
       Provider<DraftLoggingInteractor> draftLoggingInteractorProvider,
       Provider<ChatRepository> chatRepositoryProvider,
-      Provider<UserPreferencesDataStore> preferencesDataStoreProvider) {
-    return new HomeViewModel_Factory(loggingRepositoryProvider, profileRepositoryProvider, goalRepositoryProvider, draftLoggingInteractorProvider, chatRepositoryProvider, preferencesDataStoreProvider);
+      Provider<UserPreferencesDataStore> preferencesDataStoreProvider,
+      Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider) {
+    return new HomeViewModel_Factory(loggingRepositoryProvider, profileRepositoryProvider, goalRepositoryProvider, draftLoggingInteractorProvider, chatRepositoryProvider, preferencesDataStoreProvider, soundManagerProvider, hapticManagerProvider);
   }
 
   public static HomeViewModel newInstance(LoggingRepository loggingRepository,
       ProfileRepository profileRepository, GoalRepository goalRepository,
       DraftLoggingInteractor draftLoggingInteractor, ChatRepository chatRepository,
-      UserPreferencesDataStore preferencesDataStore) {
-    return new HomeViewModel(loggingRepository, profileRepository, goalRepository, draftLoggingInteractor, chatRepository, preferencesDataStore);
+      UserPreferencesDataStore preferencesDataStore, SoundManager soundManager,
+      HapticManager hapticManager) {
+    return new HomeViewModel(loggingRepository, profileRepository, goalRepository, draftLoggingInteractor, chatRepository, preferencesDataStore, soundManager, hapticManager);
   }
 }

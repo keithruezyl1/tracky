@@ -38,6 +38,7 @@ import com.tracky.app.di.NetworkModule_ProvideRetrofitFactory;
 import com.tracky.app.di.NetworkModule_ProvideTrackyBackendApiFactory;
 import com.tracky.app.domain.resolver.UserHistoryResolver;
 import com.tracky.app.domain.usecase.DraftLoggingInteractor;
+import com.tracky.app.ui.haptics.HapticManager;
 import com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel;
 import com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel_HiltModules;
 import com.tracky.app.ui.screens.goals.DailyGoalsViewModel;
@@ -54,6 +55,7 @@ import com.tracky.app.ui.screens.splash.SplashViewModel;
 import com.tracky.app.ui.screens.splash.SplashViewModel_HiltModules;
 import com.tracky.app.ui.screens.weight.WeightTrackerViewModel;
 import com.tracky.app.ui.screens.weight.WeightTrackerViewModel_HiltModules;
+import com.tracky.app.ui.sound.SoundManager;
 import dagger.hilt.android.ActivityRetainedLifecycle;
 import dagger.hilt.android.ViewModelLifecycle;
 import dagger.hilt.android.internal.builders.ActivityComponentBuilder;
@@ -444,42 +446,42 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
-
       static String com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel = "com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel";
-
-      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
-
-      static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
-
-      static String com_tracky_app_ui_screens_onboarding_OnboardingViewModel = "com.tracky.app.ui.screens.onboarding.OnboardingViewModel";
-
-      static String com_tracky_app_ui_screens_goals_DailyGoalsViewModel = "com.tracky.app.ui.screens.goals.DailyGoalsViewModel";
 
       static String com_tracky_app_ui_screens_settings_SettingsViewModel = "com.tracky.app.ui.screens.settings.SettingsViewModel";
 
-      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
+      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
 
-      @KeepFieldType
-      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
+      static String com_tracky_app_ui_screens_onboarding_OnboardingViewModel = "com.tracky.app.ui.screens.onboarding.OnboardingViewModel";
+
+      static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
+
+      static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
+
+      static String com_tracky_app_ui_screens_goals_DailyGoalsViewModel = "com.tracky.app.ui.screens.goals.DailyGoalsViewModel";
+
+      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
 
       @KeepFieldType
       EntryDetailViewModel com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel2;
 
       @KeepFieldType
-      SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
+      SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
 
       @KeepFieldType
-      WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
+      SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
 
       @KeepFieldType
       OnboardingViewModel com_tracky_app_ui_screens_onboarding_OnboardingViewModel2;
 
       @KeepFieldType
-      DailyGoalsViewModel com_tracky_app_ui_screens_goals_DailyGoalsViewModel2;
+      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
 
       @KeepFieldType
-      SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
+      WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
+
+      @KeepFieldType
+      DailyGoalsViewModel com_tracky_app_ui_screens_goals_DailyGoalsViewModel2;
 
       @KeepFieldType
       HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
@@ -546,27 +548,36 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_tracky_app_ui_screens_goals_DailyGoalsViewModel = "com.tracky.app.ui.screens.goals.DailyGoalsViewModel";
+      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
 
       static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
+
+      static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
+
+      static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
+
+      static String com_tracky_app_ui_screens_goals_DailyGoalsViewModel = "com.tracky.app.ui.screens.goals.DailyGoalsViewModel";
 
       static String com_tracky_app_ui_screens_settings_SettingsViewModel = "com.tracky.app.ui.screens.settings.SettingsViewModel";
 
       static String com_tracky_app_ui_screens_onboarding_OnboardingViewModel = "com.tracky.app.ui.screens.onboarding.OnboardingViewModel";
 
-      static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
-
       static String com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel = "com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel";
 
-      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
-
-      static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
-
       @KeepFieldType
-      DailyGoalsViewModel com_tracky_app_ui_screens_goals_DailyGoalsViewModel2;
+      HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
 
       @KeepFieldType
       SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
+
+      @KeepFieldType
+      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
+
+      @KeepFieldType
+      WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
+
+      @KeepFieldType
+      DailyGoalsViewModel com_tracky_app_ui_screens_goals_DailyGoalsViewModel2;
 
       @KeepFieldType
       SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
@@ -575,16 +586,7 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
       OnboardingViewModel com_tracky_app_ui_screens_onboarding_OnboardingViewModel2;
 
       @KeepFieldType
-      WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
-
-      @KeepFieldType
       EntryDetailViewModel com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel2;
-
-      @KeepFieldType
-      HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
-
-      @KeepFieldType
-      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {
@@ -612,10 +614,10 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
           return (T) new DailyGoalsViewModel(singletonCImpl.goalRepositoryProvider.get());
 
           case 1: // com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel 
-          return (T) new EntryDetailViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.loggingRepositoryProvider.get(), singletonCImpl.savedEntryDao(), singletonCImpl.foodsRepositoryProvider.get(), singletonCImpl.provideTrackyBackendApiProvider.get(), singletonCImpl.profileRepositoryProvider.get());
+          return (T) new EntryDetailViewModel(viewModelCImpl.savedStateHandle, singletonCImpl.loggingRepositoryProvider.get(), singletonCImpl.savedEntryDao(), singletonCImpl.foodsRepositoryProvider.get(), singletonCImpl.provideTrackyBackendApiProvider.get(), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.soundManagerProvider.get(), singletonCImpl.hapticManagerProvider.get());
 
           case 2: // com.tracky.app.ui.screens.home.HomeViewModel 
-          return (T) new HomeViewModel(singletonCImpl.loggingRepositoryProvider.get(), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.goalRepositoryProvider.get(), singletonCImpl.draftLoggingInteractorProvider.get(), singletonCImpl.chatRepositoryProvider.get(), singletonCImpl.userPreferencesDataStoreProvider.get());
+          return (T) new HomeViewModel(singletonCImpl.loggingRepositoryProvider.get(), singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.goalRepositoryProvider.get(), singletonCImpl.draftLoggingInteractorProvider.get(), singletonCImpl.chatRepositoryProvider.get(), singletonCImpl.userPreferencesDataStoreProvider.get(), singletonCImpl.soundManagerProvider.get(), singletonCImpl.hapticManagerProvider.get());
 
           case 3: // com.tracky.app.ui.screens.onboarding.OnboardingViewModel 
           return (T) new OnboardingViewModel(singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.goalRepositoryProvider.get(), singletonCImpl.weightRepositoryProvider.get());
@@ -734,6 +736,10 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
 
     private Provider<FoodsRepository> foodsRepositoryProvider;
 
+    private Provider<SoundManager> soundManagerProvider;
+
+    private Provider<HapticManager> hapticManagerProvider;
+
     private Provider<DraftLoggingInteractor> draftLoggingInteractorProvider;
 
     private Provider<ChatRepository> chatRepositoryProvider;
@@ -791,9 +797,11 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
       this.provideTrackyBackendApiProvider = DoubleCheck.provider(new SwitchingProvider<TrackyBackendApi>(singletonCImpl, 6));
       this.userHistoryResolverProvider = DoubleCheck.provider(new SwitchingProvider<UserHistoryResolver>(singletonCImpl, 10));
       this.foodsRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<FoodsRepository>(singletonCImpl, 5));
-      this.draftLoggingInteractorProvider = DoubleCheck.provider(new SwitchingProvider<DraftLoggingInteractor>(singletonCImpl, 11));
-      this.chatRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<ChatRepository>(singletonCImpl, 12));
-      this.weightRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<WeightRepository>(singletonCImpl, 13));
+      this.soundManagerProvider = DoubleCheck.provider(new SwitchingProvider<SoundManager>(singletonCImpl, 11));
+      this.hapticManagerProvider = DoubleCheck.provider(new SwitchingProvider<HapticManager>(singletonCImpl, 12));
+      this.draftLoggingInteractorProvider = DoubleCheck.provider(new SwitchingProvider<DraftLoggingInteractor>(singletonCImpl, 13));
+      this.chatRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<ChatRepository>(singletonCImpl, 14));
+      this.weightRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<WeightRepository>(singletonCImpl, 15));
     }
 
     @Override
@@ -862,13 +870,19 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
           case 10: // com.tracky.app.domain.resolver.UserHistoryResolver 
           return (T) new UserHistoryResolver(singletonCImpl.foodEntryDao());
 
-          case 11: // com.tracky.app.domain.usecase.DraftLoggingInteractor 
+          case 11: // com.tracky.app.ui.sound.SoundManager 
+          return (T) new SoundManager(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+
+          case 12: // com.tracky.app.ui.haptics.HapticManager 
+          return (T) new HapticManager(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.userPreferencesDataStoreProvider.get());
+
+          case 13: // com.tracky.app.domain.usecase.DraftLoggingInteractor 
           return (T) new DraftLoggingInteractor(singletonCImpl.provideTrackyBackendApiProvider.get(), singletonCImpl.foodsRepositoryProvider.get(), singletonCImpl.loggingRepositoryProvider.get(), singletonCImpl.profileRepositoryProvider.get());
 
-          case 12: // com.tracky.app.data.repository.ChatRepository 
+          case 14: // com.tracky.app.data.repository.ChatRepository 
           return (T) new ChatRepository(singletonCImpl.chatMessageDao());
 
-          case 13: // com.tracky.app.data.repository.WeightRepository 
+          case 15: // com.tracky.app.data.repository.WeightRepository 
           return (T) new WeightRepository(singletonCImpl.weightEntryDao());
 
           default: throw new AssertionError(id);

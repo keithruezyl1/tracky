@@ -55,4 +55,12 @@ interface ExerciseEntryDao {
 
     @Query("DELETE FROM exercise_items WHERE id = :itemId")
     suspend fun deleteItemById(itemId: Long)
+
+    @Transaction
+    suspend fun updateEntryWithItems(entry: ExerciseEntryEntity, items: List<ExerciseItemEntity>) {
+        update(entry)
+        deleteItemsForEntry(entry.id)
+        val itemsWithEntryId = items.map { it.copy(entryId = entry.id) }
+        insertItems(itemsWithEntryId)
+    }
 }

@@ -140,6 +140,29 @@ fun SettingsScreen(
                         onCheckedChange = viewModel::setDarkModeEnabled
                     )
                 }
+
+                TrackyDivider()
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = TrackyTokens.Spacing.XS),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        TrackyBodyText(text = "Haptics")
+                        TrackyBodySmall(
+                            text = "Vibrate on interactions",
+                            color = TrackyColors.TextTertiary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(TrackyTokens.Spacing.M))
+                    TrackySwitch(
+                        checked = uiState.hapticsEnabled,
+                        onCheckedChange = viewModel::setHapticsEnabled
+                    )
+                }
             }
 
             // About section
@@ -147,7 +170,7 @@ fun SettingsScreen(
             TrackySectionTitle(text = "About")
 
             TrackyCard {
-                SettingsRow("Version", "2.0.0")
+                SettingsRow("Version", "3.0.0")
             }
 
             // Reset section

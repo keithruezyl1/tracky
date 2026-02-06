@@ -34,6 +34,7 @@ class UserPreferencesDataStore @Inject constructor(
         val STORE_PHOTOS_LOCALLY = booleanPreferencesKey("store_photos_locally")
         val TIMEZONE = stringPreferencesKey("timezone")
         val DARK_MODE_ENABLED = booleanPreferencesKey("dark_mode_enabled")
+        val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -97,6 +98,10 @@ class UserPreferencesDataStore @Inject constructor(
     // Dark Mode Preference
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Dark Mode Preference
+    // ─────────────────────────────────────────────────────────────────────────
+
     val darkModeEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[Keys.DARK_MODE_ENABLED] ?: false  // Default to light mode
     }
@@ -104,6 +109,20 @@ class UserPreferencesDataStore @Inject constructor(
     suspend fun setDarkModeEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[Keys.DARK_MODE_ENABLED] = enabled
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Haptics Preference
+    // ─────────────────────────────────────────────────────────────────────────
+
+    val hapticsEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.HAPTICS_ENABLED] ?: true  // Default to enabled
+    }
+
+    suspend fun setHapticsEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[Keys.HAPTICS_ENABLED] = enabled
         }
     }
 

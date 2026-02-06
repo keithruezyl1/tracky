@@ -27,18 +27,19 @@ class WeightTrackerViewModel @Inject constructor(
     private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
+    // Chart Calculation Constants
+    private val CHART_Y_AXIS_TICKS_COUNT = 5
+    private val CHART_Y_AXIS_BUFFER_PERCENT = 0.1f // 10%
+
+
     private val _uiState = MutableStateFlow(WeightTrackerUiState())
     val uiState: StateFlow<WeightTrackerUiState> = _uiState.asStateFlow()
 
     private val _selectedRange = MutableStateFlow(WeightChartRange.MONTH)
     val selectedRange: StateFlow<WeightChartRange> = _selectedRange.asStateFlow()
 
-    val weightEntries: StateFlow<List<WeightEntry>> = combine(
-        _selectedRange,
-        weightRepository.getEntriesForRange(_selectedRange.value)
-    ) { _, entries ->
-        entries
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // weightEntries flow is removed as we manualy update state in collectors to ensure synchronization
+
 
     init {
         loadData()
@@ -65,6 +66,7 @@ class WeightTrackerViewModel @Inject constructor(
                             heightCm = profile.heightCm,
                             unitPreference = profile.unitPreference,
                             startWeightKg = startWeight,
+                            initialEntryId = entries.minByOrNull { it.timestamp }?.id,
                             isLoading = false
                         )
                     }
@@ -73,9 +75,10 @@ class WeightTrackerViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-             // Observe entries for selected range
+            // Observe entries for selected range
             weightRepository.getEntriesForRange(_selectedRange.value).collect { entries ->
-                _uiState.update { it.copy(entries = entries) }
+                val chartState = calculateChartState(entries, _selectedRange.value)
+                _uiState.update { it.copy(entries = entries, chartState = chartState) }
             }
         }
     }
@@ -99,7 +102,8 @@ class WeightTrackerViewModel @Inject constructor(
         _selectedRange.value = range
         viewModelScope.launch {
             weightRepository.getEntriesForRange(range).collect { entries ->
-                _uiState.update { it.copy(entries = entries) }
+                val chartState = calculateChartState(entries, range)
+                _uiState.update { it.copy(entries = entries, chartState = chartState) }
             }
         }
     }
@@ -110,7 +114,7 @@ class WeightTrackerViewModel @Inject constructor(
                 .toLocalDateTime(TimeZone.currentSystemDefault())
                 .date.toString()
             
-            weightRepository.addEntry(weightKg, today, note)
+            val newId = weightRepository.addEntry(weightKg, today, note)
             
             // Update current weight in profile
             val profile = profileRepository.getProfileOnce()
@@ -118,6 +122,12 @@ class WeightTrackerViewModel @Inject constructor(
                 profileRepository.updateWeight(weightKg, profile.heightCm)
             }
 
+            // Refresh initial ID in case this was the first entry (unlikely if profile existed, but good practice)
+            // Or if we need to re-evaluate what is "initial" (though initial should be oldest)
+            // Ideally we re-fetch all entries to support correct state logic if needed, 
+            // but for now relying on loadData's initial fetch + updates might be enough if we only care about the *absolute* oldest which shouldn't change on ADD unless backdating.
+            // But let's keep it simple.
+            
             _uiState.update { it.copy(currentWeightKg = weightKg) }
         }
     }
@@ -158,7 +168,8 @@ class WeightTrackerViewModel @Inject constructor(
                 _uiState.update { 
                     it.copy(
                         currentWeightKg = latestEntry.weightKg,
-                        startWeightKg = newEarliestEntry?.weightKg
+                        startWeightKg = newEarliestEntry?.weightKg,
+                        initialEntryId = newEarliestEntry?.id
                     ) 
                 }
             }
@@ -259,6 +270,74 @@ class WeightTrackerViewModel @Inject constructor(
     fun hideEntryOptions() {
         _uiState.update { it.copy(selectedEntryForOptions = null, showEntryOptionsDialog = false) }
     }
+    private fun calculateChartState(entries: List<WeightEntry>, range: WeightChartRange): com.tracky.app.domain.model.WeightChartState {
+        // 1. Filter and Aggregation
+        val rawPoints = when (range) {
+            WeightChartRange.DAY -> {
+                entries.map { entry ->
+                    Pair(entry.timestamp, entry.weightKg)
+                }.sortedBy { it.first }
+            }
+            WeightChartRange.WEEK, WeightChartRange.MONTH, WeightChartRange.ALL -> {
+                entries.groupBy { it.date }
+                    .map { (_, dailyEntries) ->
+                        val avgWeight = dailyEntries.map { it.weightKg }.average().toFloat()
+                        val timestamp = dailyEntries.first().timestamp
+                        Pair(timestamp, avgWeight)
+                    }
+                    .sortedBy { it.first }
+            }
+        }
+
+        // 2. Y-Axis Calculation
+        val yMin = 0f
+        val maxYValue = rawPoints.maxOfOrNull { it.second } ?: 100f
+        val yMax = if (rawPoints.isEmpty()) 100f else maxYValue * (1f + CHART_Y_AXIS_BUFFER_PERCENT)
+        
+        val yRange = yMax - yMin
+        val interval = yRange / (CHART_Y_AXIS_TICKS_COUNT - 1)
+        val yTicks = (0 until CHART_Y_AXIS_TICKS_COUNT).map { i ->
+            yMin + (interval * i)
+        }
+
+        val minTimestamp = if (rawPoints.isEmpty()) {
+             Clock.System.now().toEpochMilliseconds() 
+        } else {
+            rawPoints.first().first
+        }
+
+        // 3. Coordinate Calculation (Index-Based for Stability)
+        // We simply map points to 0, 1, 2, 3... to avoid all Float precision/separation issues.
+        val finalPoints = mutableListOf<com.tracky.app.domain.model.WeightChartPoint>()
+        
+        rawPoints.forEachIndexed { index, (ts, weight) ->
+            finalPoints.add(
+                com.tracky.app.domain.model.WeightChartPoint(
+                    x = index.toFloat(),
+                    y = weight,
+                    timestamp = ts,
+                    label = "" 
+                )
+            )
+        }
+
+        // MaxX is simply the last index
+        val maxX = if (finalPoints.isNotEmpty()) {
+             (finalPoints.size - 1).toFloat()
+        } else {
+            0f 
+        }
+
+        return com.tracky.app.domain.model.WeightChartState(
+            points = finalPoints,
+            minY = yMin,
+            maxY = yMax,
+            yAxisTicks = yTicks,
+            minTimestamp = 0L, // Unused for lookup now
+            maxX = maxX,
+            xAxisTicks = emptyList()
+        ) 
+    }
 }
 
 data class WeightTrackerUiState(
@@ -267,6 +346,7 @@ data class WeightTrackerUiState(
     val targetWeightKg: Float = 0f,
     val heightCm: Float = 0f,
     val startWeightKg: Float? = null,
+    val initialEntryId: Long? = null,
     val unitPreference: com.tracky.app.domain.model.UnitPreference = com.tracky.app.domain.model.UnitPreference.METRIC,
     val entries: List<WeightEntry> = emptyList(),
     val showAddDialog: Boolean = false,
@@ -277,5 +357,6 @@ data class WeightTrackerUiState(
     val showWeightSelectionDialog: Boolean = false,
     val selectedEntryForOptions: WeightEntry? = null,
     val showEntryOptionsDialog: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val chartState: com.tracky.app.domain.model.WeightChartState = com.tracky.app.domain.model.WeightChartState()
 )

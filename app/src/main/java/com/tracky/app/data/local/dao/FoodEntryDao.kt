@@ -128,6 +128,15 @@ interface FoodEntryDao {
         deleteItemsForEntry(entryId)
         deleteById(entryId)
     }
+
+    @Transaction
+    suspend fun updateEntryWithItems(entry: FoodEntryEntity, items: List<FoodItemEntity>) {
+        update(entry)
+        deleteItemsForEntry(entry.id)
+        // Ensure items link to the entry
+        val itemsWithEntryId = items.map { it.copy(foodEntryId = entry.id) }
+        insertItems(itemsWithEntryId)
+    }
 }
 
 /**

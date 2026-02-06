@@ -38,7 +38,9 @@ class EntryDetailViewModel @Inject constructor(
     private val savedEntryDao: SavedEntryDao,
     private val foodsRepository: FoodsRepository,
     private val backendApi: TrackyBackendApi,
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val soundManager: com.tracky.app.ui.sound.SoundManager,
+    private val hapticManager: com.tracky.app.ui.haptics.HapticManager
 ) : ViewModel() {
 
     private val json = Json { encodeDefaults = true }
@@ -164,6 +166,8 @@ class EntryDetailViewModel @Inject constructor(
                 
                 if (updatedItems.isEmpty()) {
                     loggingRepository.deleteFoodEntry(currentEntry.id)
+                    soundManager.playCrumple()
+                    hapticManager.vibrateSoft()
                     _uiState.update { it.copy(entryDeleted = true) }
                 } else {
                     val updatedEntry = currentEntry.copy(
@@ -326,6 +330,8 @@ class EntryDetailViewModel @Inject constructor(
                 
                 if (updatedItems.isEmpty()) {
                     loggingRepository.deleteExerciseEntry(currentEntry.id)
+                    soundManager.playCrumple()
+                    hapticManager.vibrateSoft()
                     _uiState.update { it.copy(entryDeleted = true) }
                 } else {
                     val updatedEntry = currentEntry.copy(
@@ -351,6 +357,8 @@ class EntryDetailViewModel @Inject constructor(
                 } else {
                     loggingRepository.deleteExerciseEntry(entryId)
                 }
+                soundManager.playCrumple()
+                hapticManager.vibrateSoft()
                 _uiState.update { it.copy(entryDeleted = true) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }

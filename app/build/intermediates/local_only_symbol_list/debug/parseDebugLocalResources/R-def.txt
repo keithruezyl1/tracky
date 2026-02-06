@@ -6,6 +6,9 @@ drawable ic_notification
 drawable tracky_logo
 mipmap ic_launcher
 mipmap ic_launcher_round
+raw crumple
+raw ding
+raw pop
 string app_name
 style Theme.Tracky
 style Theme.Tracky.Starting

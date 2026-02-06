@@ -172,8 +172,7 @@ fun WeightTrackerScreen(
             } else {
                 TrackyCard {
                     WeightChart(
-                        entries = uiState.entries,
-                        targetWeightKg = uiState.targetWeightKg
+                        chartState = uiState.chartState
                     )
                 }
             }
@@ -195,6 +194,7 @@ fun WeightTrackerScreen(
                 recentEntries.forEachIndexed { index, entry ->
                     WeightEntryRow(
                         entry = entry,
+                        canEdit = entry.id != uiState.initialEntryId,
                         onEdit = { viewModel.showEditDialog(entry) },
                         onDelete = { viewModel.deleteWeightEntry(entry.id) }
                     )
@@ -323,6 +323,7 @@ fun WeightTrackerScreen(
 @Composable
 private fun WeightEntryRow(
     entry: WeightEntry,
+    canEdit: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -337,20 +338,22 @@ private fun WeightEntryRow(
             TrackyBodyText(text = String.format(Locale.getDefault(), "%.1f kg", entry.weightKg))
             TrackyBodySmall(text = entry.date, color = TrackyColors.TextTertiary)
         }
-        Row {
-            IconButton(onClick = onEdit) {
-                Icon(
-                    Icons.Outlined.Edit,
-                    contentDescription = "Edit",
-                    tint = TrackyColors.TextSecondary
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Outlined.Delete,
-                    contentDescription = "Delete",
-                    tint = TrackyColors.Error
-                )
+        if (canEdit) {
+            Row {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = "Edit",
+                        tint = TrackyColors.TextSecondary
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = "Delete",
+                        tint = TrackyColors.Error
+                    )
+                }
             }
         }
     }

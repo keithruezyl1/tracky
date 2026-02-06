@@ -1,7 +1,5 @@
 package com.tracky.app.ui.components
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -20,96 +18,106 @@ import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
+import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
 import com.patrykandpatrick.vico.compose.common.of
+import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.compose.common.shader.toDynamicShader
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
+import com.patrykandpatrick.vico.core.cartesian.data.AxisValueOverrider
 import com.patrykandpatrick.vico.core.common.Dimensions
-import com.tracky.app.domain.model.WeightEntry
+import com.patrykandpatrick.vico.core.common.shape.Shape
+import com.tracky.app.domain.model.WeightChartState
 import com.tracky.app.ui.theme.TrackyColors
-import com.patrykandpatrick.vico.compose.common.fill
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
- * Weight Chart Component
+ * Weight Chart Component - Purely Data Driven
  * 
- * Displays weight progress over time using Vico chart library.
- * Uses blue gradient fill per design guidelines.
+ * Displays weight progress using pre-calculated state.
  */
 @Composable
 fun WeightChart(
-    entries: List<WeightEntry>,
-    targetWeightKg: Float,
+    chartState: WeightChartState,
     modifier: Modifier = Modifier
 ) {
-    // Use entries content as the animation trigger key
-    val entriesKey = remember(entries) { entries.map { it.id to it.weightKg }.hashCode() }
-    
     // Model producer for chart data
     val modelProducer = remember { CartesianChartModelProducer() }
     
-    // Animation state for Y-values
-    val animationProgress = remember { Animatable(0f) }
+    // Animation removed to ensure data correctness first
+
     
-    // Prepare chart data with animation - trigger on entries content change
-    LaunchedEffect(entriesKey) {
-        // Reset animation
-        animationProgress.snapTo(0f)
-        
-        if (entries.isNotEmpty()) {
-            // Start animation
-            animationProgress.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(durationMillis = 350)
-            )
-        }
-    }
-    
-    // Update model when entries or animation progress changes
-    LaunchedEffect(entriesKey, animationProgress.value) {
+    // Use points content as key
+    val pointsKey = remember(chartState.points) { chartState.points.hashCode() }
+
+    LaunchedEffect(pointsKey) {
         withContext(Dispatchers.Default) {
-            if (entries.isEmpty()) {
-                modelProducer.runTransaction {
-                    lineSeries { series(emptyList<Float>()) }
-                }
-            } else {
-                // Sort entries by timestamp
-                val sortedEntries = entries.sortedBy { it.timestamp }
-                
-                // Animate from 0 to actual values
-                val minWeight = sortedEntries.minOf { it.weightKg }
-                val animatedWeights = sortedEntries.map { entry ->
-                    minWeight + (entry.weightKg - minWeight) * animationProgress.value
-                }
+             if (chartState.points.isNotEmpty()) {
+                val xValues = chartState.points.map { it.x }
+                val yValues = chartState.points.map { it.y }
                 
                 modelProducer.runTransaction {
-                    lineSeries { series(animatedWeights) }
+                    lineSeries { 
+                        series(x = xValues, y = yValues)
+                    }
                 }
             }
         }
     }
     
-    // Blue area fill under the line - per design guidelines using BrandPrimary
-    val areaFill = LineCartesianLayer.AreaFill.single(
-        fill(TrackyColors.BrandPrimary.copy(alpha = 0.3f))
-    )
+    val primaryColor = TrackyColors.BrandPrimary
+
+    val areaFill = remember(primaryColor) {
+        LineCartesianLayer.AreaFill.single(
+            fill(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        primaryColor.copy(alpha = 0.4f),
+                        primaryColor.copy(alpha = 0.0f)
+                    )
+                ).toDynamicShader()
+            )
+        )
+    }
     
-    // Chart styling - line layer with blue gradient fill
+    val shapeComponent = rememberShapeComponent(
+        shape = Shape.Pill,
+        color = primaryColor,
+        margins = Dimensions.of(2.dp)
+    )
+    val point = remember(shapeComponent) {
+        com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer.Point(shapeComponent)
+    }
+
+    // Dynamic Axis Overrides from State
+    // We Add +/- 0.5 padding to X to ensure the integer-indexed points (0, 1, 2)
+    // are plotted in the CENTER of the chart area, not on the edges.
+    val axisValueOverrider = remember(chartState) {
+        AxisValueOverrider.fixed(
+            minY = chartState.minY.toDouble(),
+            maxY = chartState.maxY.toDouble(),
+            minX = -0.5, 
+            maxX = chartState.maxX.toDouble() + 0.5
+        )
+    }
+
     val lineLayer = rememberLineCartesianLayer(
         lineProvider = rememberLineCartesianLayerLineProvider(
              rememberLine(
-                 fill = LineCartesianLayer.LineFill.single(fill(TrackyColors.BrandPrimary)),
+                 fill = LineCartesianLayer.LineFill.single(fill(primaryColor)),
                  areaFill = areaFill,
-                 thickness = 2.dp
+                 thickness = 3.dp,
+                 pointProvider = com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer.PointProvider.single(point)
              )
-        )
+        ),
+        axisValueOverrider = axisValueOverrider
     )
     
-    // Axis styling
     val startAxis = rememberStartAxis(
         label = rememberTextComponent(
             color = TrackyColors.TextTertiary,
@@ -119,7 +127,10 @@ fun WeightChart(
         guideline = rememberLineComponent(
             color = TrackyColors.Border,
             thickness = 1.dp
-        )
+        ),
+         valueFormatter = { value, _, _ -> 
+            value.toInt().toString()
+        }
     )
     
     val bottomAxis = rememberBottomAxis(
@@ -129,20 +140,18 @@ fun WeightChart(
             margins = Dimensions.of(top = 8.dp)
         ),
         valueFormatter = { value, _, _ ->
-            // Format date labels
-            if (entries.isEmpty()) return@rememberBottomAxis ""
-            val index = value.toInt()
-            val sortedEntries = entries.sortedBy { it.timestamp }
-            if (index in sortedEntries.indices) {
-                try {
-                    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                    val date = dateFormat.parse(sortedEntries[index].date)
-                    val labelFormat = SimpleDateFormat("MMM d", Locale.getDefault())
-                    date?.let { labelFormat.format(it) } ?: ""
-                } catch (e: Exception) {
-                    ""
+            if (chartState.points.isEmpty()) return@rememberBottomAxis ""
+            try {
+                // With segmented layout, value should be close to index
+                val index = kotlin.math.round(value).toInt()
+                if (kotlin.math.abs(value - index) < 0.2 && index in chartState.points.indices) {
+                   val timestamp = chartState.points[index].timestamp
+                   val dateFormat = SimpleDateFormat("MMM d", Locale.getDefault())
+                   dateFormat.format(timestamp)
+                } else {
+                   ""
                 }
-            } else {
+            } catch (e: Exception) {
                 ""
             }
         }
@@ -161,6 +170,8 @@ fun WeightChart(
             .fillMaxWidth()
             .height(200.dp)
     )
+    
+
 }
 
 @Composable

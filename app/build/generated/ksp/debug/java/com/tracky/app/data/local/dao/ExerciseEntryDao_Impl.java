@@ -9,6 +9,7 @@ import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
 import androidx.room.RoomDatabase;
+import androidx.room.RoomDatabaseKt;
 import androidx.room.RoomSQLiteQuery;
 import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
@@ -249,6 +250,12 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
         }
       }
     }, $completion);
+  }
+
+  @Override
+  public Object updateEntryWithItems(final ExerciseEntryEntity entry,
+      final List<ExerciseItemEntity> items, final Continuation<? super Unit> $completion) {
+    return RoomDatabaseKt.withTransaction(__db, (__cont) -> ExerciseEntryDao.DefaultImpls.updateEntryWithItems(ExerciseEntryDao_Impl.this, entry, items, __cont), $completion);
   }
 
   @Override

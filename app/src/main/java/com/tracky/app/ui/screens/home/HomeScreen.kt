@@ -82,6 +82,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tracky.app.domain.model.ChatMessage
 import com.tracky.app.domain.model.ChatMessageType
@@ -115,6 +117,7 @@ import com.tracky.app.ui.components.TrackyMacrosRow
 import com.tracky.app.ui.components.TrackyScreenTitle
 import com.tracky.app.ui.components.TrackySheetActions
 import com.tracky.app.ui.components.SwipeableRow
+import com.tracky.app.ui.components.SuccessOverlay
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
 import com.tracky.app.ui.theme.TrackyTypography
@@ -166,11 +169,14 @@ fun HomeScreen(
         }
     }
 
-    // Show error from draftState
+    // Play pop sound and manage animation state when a draft appears
     LaunchedEffect(draftState) {
         if (draftState is DraftState.Error) {
             val error = (draftState as DraftState.Error).message
             snackbarHostState.showSnackbar(error)
+        }
+        if (draftState is DraftState.FoodDraft || draftState is DraftState.ExerciseDraft) {
+            viewModel.onDraftAppeared()
         }
     }
 
@@ -342,11 +348,11 @@ fun HomeScreen(
                                 onDragEnd = {
                                     if (swipeOffset > swipeThreshold) {
                                         // Swipe right -> previous day
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        if (uiState.hapticsEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         viewModel.selectPreviousDay()
                                     } else if (swipeOffset < -swipeThreshold) {
                                         // Swipe left -> next day
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        if (uiState.hapticsEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         viewModel.selectNextDay()
                                     }
                                     swipeOffset = 0f
@@ -441,6 +447,7 @@ fun HomeScreen(
                                     Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
                                         FoodDraftCard(
                                             draft = state.data,
+                                            animate = uiState.shouldAnimateDraft,
                                             onConfirm = { viewModel.confirmFoodDraft(state.data) },
                                             onCancel = viewModel::cancelDraft,
                                             onItemClick = { index -> editingFoodIndex = index }
@@ -454,6 +461,7 @@ fun HomeScreen(
                                     Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
                                         ExerciseDraftCard(
                                             draft = state.data,
+                                            animate = uiState.shouldAnimateDraft,
                                             onConfirm = { viewModel.confirmExerciseDraft(state.data) },
                                             onCancel = viewModel::cancelDraft,
                                             onItemClick = { index -> editingExerciseIndex = index }
@@ -547,12 +555,14 @@ fun HomeScreen(
                     }
                 }
 
+                val keyboardController = LocalSoftwareKeyboardController.current
                 // Composer bar - AI auto-detects food vs exercise
                 ComposerBar(
                     inputText = uiState.inputText,
                     onInputChange = viewModel::updateInputText,
                     onSend = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        if (uiState.hapticsEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        keyboardController?.hide()
                         viewModel.logAutoFromText(uiState.inputText)
                     },
                     onCameraClick = { showCamera = true },
@@ -622,6 +632,13 @@ fun HomeScreen(
             editingExerciseIndex = null
         }
     }
+
+    // Success Overlay
+    val showSuccessOverlay by viewModel.showSuccessOverlay.collectAsState()
+    SuccessOverlay(
+        visible = showSuccessOverlay,
+        onAnimationFinished = viewModel::dismissSuccessOverlay
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -684,7 +701,7 @@ private fun CaloriesCard(
                 compact = true
             )
         }
-        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
         TrackyCaloriesProgress(
             consumed = foodCalories,
             burned = exerciseCalories,
@@ -737,11 +754,29 @@ private fun MacrosCard(
 @Composable
 private fun FoodDraftCard(
     draft: DraftData.FoodDraft,
+    animate: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     onItemClick: (Int) -> Unit
 ) {
-    TrackyCard {
+    val scale = remember { androidx.compose.animation.core.Animatable(if (animate) 0.9f else 1.0f) }
+    
+    LaunchedEffect(Unit) {
+        if (animate) {
+            scale.animateTo(
+                targetValue = 1.05f,
+                animationSpec = tween(150)
+            )
+            scale.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(100)
+            )
+        }
+    }
+
+    TrackyCard(
+        modifier = Modifier.scale(scale.value)
+    ) {
         TrackyCardTitle(text = "Confirm Food Entry")
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
@@ -794,11 +829,29 @@ private fun FoodDraftCard(
 @Composable
 private fun ExerciseDraftCard(
     draft: DraftData.ExerciseDraft,
+    animate: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     onItemClick: (Int) -> Unit
 ) {
-    TrackyCard {
+    val scale = remember { androidx.compose.animation.core.Animatable(if (animate) 0.9f else 1.0f) }
+
+    LaunchedEffect(Unit) {
+        if (animate) {
+            scale.animateTo(
+                targetValue = 1.05f,
+                animationSpec = tween(150)
+            )
+            scale.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(100)
+            )
+        }
+    }
+
+    TrackyCard(
+        modifier = Modifier.scale(scale.value)
+    ) {
         TrackyCardTitle(text = "Confirm Exercise Entry")
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
