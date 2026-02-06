@@ -142,14 +142,12 @@ fun WeightChart(
         valueFormatter = { value, _, _ ->
             if (chartState.points.isEmpty()) return@rememberBottomAxis ""
             try {
-                // With segmented layout, value should be close to index
+                // Map the float value (index) back to the point to get the label
                 val index = kotlin.math.round(value).toInt()
-                if (kotlin.math.abs(value - index) < 0.2 && index in chartState.points.indices) {
-                   val timestamp = chartState.points[index].timestamp
-                   val dateFormat = SimpleDateFormat("MMM d", Locale.getDefault())
-                   dateFormat.format(timestamp)
+                if (index in chartState.points.indices) {
+                    chartState.points[index].label
                 } else {
-                   ""
+                    ""
                 }
             } catch (e: Exception) {
                 ""

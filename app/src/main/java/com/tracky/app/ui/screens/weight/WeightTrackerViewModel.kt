@@ -14,11 +14,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.minus
 import javax.inject.Inject
 
 @HiltViewModel
@@ -47,20 +50,14 @@ class WeightTrackerViewModel @Inject constructor(
 
     private fun loadData() {
         viewModelScope.launch {
-            // Observe Profile for Unit, Height, Target changes
             profileRepository.getProfile().collect { profile ->
                 if (profile != null) {
-                    // Update start weight based on profile creation/update time
                     val targetSetTime = profile.updatedAt
-                    // We need to fetch entries to find start weight. 
-                    // This might be expensive to do on every profile update if entries are large, 
-                    // but profile updates are rare.
                     val entries = weightRepository.getAllEntries().first()
                     val startWeight = entries.minByOrNull { kotlin.math.abs(it.timestamp - targetSetTime) }?.weightKg
                     
                     _uiState.update { state ->
                         state.copy(
-                            // Prefer latest entry from repo if available, else profile
                             currentWeightKg = profile.currentWeightKg, 
                             targetWeightKg = profile.targetWeightKg,
                             heightCm = profile.heightCm,
@@ -74,11 +71,46 @@ class WeightTrackerViewModel @Inject constructor(
             }
         }
 
+        // Fix: Decouple List from Chart Filter.
+        // We fetch ALL entries for the "Recent History" list so it never hides data.
+        // We filter specific ranges for the Chart generation in-memory.
         viewModelScope.launch {
-            // Observe entries for selected range
-            weightRepository.getEntriesForRange(_selectedRange.value).collect { entries ->
-                val chartState = calculateChartState(entries, _selectedRange.value)
-                _uiState.update { it.copy(entries = entries, chartState = chartState) }
+            combine(
+                weightRepository.getAllEntries(),
+                _selectedRange
+            ) { allEntries, range ->
+                // 1. List Data: Show all entries, sorted Oldest to Newest
+                val historyList = allEntries.sortedBy { it.timestamp }
+
+                // 2. Chart Data: Filter based on User's "Granularity" definitions
+                // Day Tab -> Last 7 Days
+                // Week Tab -> Last 4 Weeks
+                // Month Tab -> Last 6 Months
+                // All Tab -> All Time
+                
+                val now = Clock.System.now()
+                val today = now.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                
+                val filteredForChart = when (range) {
+                    WeightChartRange.DAY -> {
+                         val start = now.minus(7, kotlinx.datetime.DateTimeUnit.DAY, TimeZone.currentSystemDefault())
+                         allEntries.filter { it.timestamp >= start.toEpochMilliseconds() }
+                    }
+                    WeightChartRange.WEEK -> {
+                        val start = now.minus(28, kotlinx.datetime.DateTimeUnit.DAY, TimeZone.currentSystemDefault())
+                        allEntries.filter { it.timestamp >= start.toEpochMilliseconds() }
+                    }
+                    WeightChartRange.MONTH -> {
+                        val start = now.minus(6, kotlinx.datetime.DateTimeUnit.MONTH, TimeZone.currentSystemDefault())
+                        allEntries.filter { it.timestamp >= start.toEpochMilliseconds() }
+                    }
+                    WeightChartRange.ALL -> allEntries
+                }
+
+                Triple(historyList, filteredForChart, range)
+            }.collect { (history, chartEntries, range) ->
+                val chartState = calculateChartState(chartEntries, range)
+                _uiState.update { it.copy(entries = history, chartState = chartState) }
             }
         }
     }
@@ -94,18 +126,12 @@ class WeightTrackerViewModel @Inject constructor(
                     )
                 )
             }
-            // State will update via flow collection
         }
     }
 
     fun selectRange(range: WeightChartRange) {
         _selectedRange.value = range
-        viewModelScope.launch {
-            weightRepository.getEntriesForRange(range).collect { entries ->
-                val chartState = calculateChartState(entries, range)
-                _uiState.update { it.copy(entries = entries, chartState = chartState) }
-            }
-        }
+        // No need to launch separate job; the flatMapLatest block above handles it.
     }
 
     fun addWeightEntry(weightKg: Float, note: String? = null) {
@@ -271,28 +297,66 @@ class WeightTrackerViewModel @Inject constructor(
         _uiState.update { it.copy(selectedEntryForOptions = null, showEntryOptionsDialog = false) }
     }
     private fun calculateChartState(entries: List<WeightEntry>, range: WeightChartRange): com.tracky.app.domain.model.WeightChartState {
-        // 1. Filter and Aggregation
+        // Helper to format timestamps
+        fun format(ts: Long, pattern: String): String {
+            return java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault()).format(java.util.Date(ts))
+        }
+
         val rawPoints = when (range) {
             WeightChartRange.DAY -> {
-                entries.map { entry ->
-                    Pair(entry.timestamp, entry.weightKg)
-                }.sortedBy { it.first }
-            }
-            WeightChartRange.WEEK, WeightChartRange.MONTH, WeightChartRange.ALL -> {
-                entries.groupBy { it.date }
+                // Granularity: Daily (Last 7 Days)
+                // Group by Date string to average multiple entries per day
+                entries.groupBy { format(it.timestamp, "yyyy-MM-dd") }
                     .map { (_, dailyEntries) ->
                         val avgWeight = dailyEntries.map { it.weightKg }.average().toFloat()
                         val timestamp = dailyEntries.first().timestamp
-                        Pair(timestamp, avgWeight)
+                        val label = format(timestamp, "EEE") // Mon, Tue...
+                        Triple(timestamp, avgWeight, label)
+                    }
+                    .sortedBy { it.first }
+            }
+            WeightChartRange.WEEK -> {
+                // Granularity: Weekly (Last 4 Weeks)
+                // Group by Week (using Calendar or simple math)
+                // Simple approx: Group by ISO Week or similar. 
+                // Reliable approach: Calendar week of year
+                entries.groupBy { entry ->
+                    val cal = java.util.Calendar.getInstance()
+                    cal.timeInMillis = entry.timestamp
+                    "${cal.get(java.util.Calendar.YEAR)}-${cal.get(java.util.Calendar.WEEK_OF_YEAR)}"
+                }.map { (_, weekEntries) ->
+                    val avgWeight = weekEntries.map { it.weightKg }.average().toFloat()
+                    val firstEntry = weekEntries.minByOrNull { it.timestamp }!!
+                    val label = format(firstEntry.timestamp, "MMM d") // Feb 10
+                    Triple(firstEntry.timestamp, avgWeight, label)
+                }.sortedBy { it.first }
+            }
+            WeightChartRange.MONTH, WeightChartRange.ALL -> {
+                // Granularity: Monthly
+                entries.groupBy { format(it.timestamp, "yyyy-MM") }
+                    .map { (_, monthEntries) ->
+                        val avgWeight = monthEntries.map { it.weightKg }.average().toFloat()
+                        val firstEntry = monthEntries.minByOrNull { it.timestamp }!!
+                        val label = format(firstEntry.timestamp, "MMM") // Jan, Feb
+                        Triple(firstEntry.timestamp, avgWeight, label)
                     }
                     .sortedBy { it.first }
             }
         }
 
+        // Handle empty state for DAY specifically if needed, but with 7-day window we might have data.
+        // If truly empty, we can fallback or show empty.
+        // Keeping fallback logic for robustness if list is empty but currentWeight exists.
+        val finalPointsList = if (rawPoints.isEmpty() && range == WeightChartRange.DAY && _uiState.value.currentWeightKg > 0) {
+             listOf(Triple(Clock.System.now().toEpochMilliseconds(), _uiState.value.currentWeightKg, "Today"))
+        } else {
+            rawPoints
+        }
+
         // 2. Y-Axis Calculation
         val yMin = 0f
-        val maxYValue = rawPoints.maxOfOrNull { it.second } ?: 100f
-        val yMax = if (rawPoints.isEmpty()) 100f else maxYValue * (1f + CHART_Y_AXIS_BUFFER_PERCENT)
+        val maxYValue = finalPointsList.maxOfOrNull { it.second } ?: 100f
+        val yMax = if (finalPointsList.isEmpty()) 100f else maxYValue * (1f + CHART_Y_AXIS_BUFFER_PERCENT)
         
         val yRange = yMax - yMin
         val interval = yRange / (CHART_Y_AXIS_TICKS_COUNT - 1)
@@ -300,28 +364,16 @@ class WeightTrackerViewModel @Inject constructor(
             yMin + (interval * i)
         }
 
-        val minTimestamp = if (rawPoints.isEmpty()) {
-             Clock.System.now().toEpochMilliseconds() 
-        } else {
-            rawPoints.first().first
-        }
-
-        // 3. Coordinate Calculation (Index-Based for Stability)
-        // We simply map points to 0, 1, 2, 3... to avoid all Float precision/separation issues.
-        val finalPoints = mutableListOf<com.tracky.app.domain.model.WeightChartPoint>()
-        
-        rawPoints.forEachIndexed { index, (ts, weight) ->
-            finalPoints.add(
-                com.tracky.app.domain.model.WeightChartPoint(
-                    x = index.toFloat(),
-                    y = weight,
-                    timestamp = ts,
-                    label = "" 
-                )
+        // 3. Convert to Chart Points
+        val finalPoints = finalPointsList.mapIndexed { index, (ts, weight, label) ->
+            com.tracky.app.domain.model.WeightChartPoint(
+                x = index.toFloat(),
+                y = weight,
+                timestamp = ts,
+                label = label 
             )
         }
 
-        // MaxX is simply the last index
         val maxX = if (finalPoints.isNotEmpty()) {
              (finalPoints.size - 1).toFloat()
         } else {
@@ -333,7 +385,7 @@ class WeightTrackerViewModel @Inject constructor(
             minY = yMin,
             maxY = yMax,
             yAxisTicks = yTicks,
-            minTimestamp = 0L, // Unused for lookup now
+            minTimestamp = 0L, 
             maxX = maxX,
             xAxisTicks = emptyList()
         ) 

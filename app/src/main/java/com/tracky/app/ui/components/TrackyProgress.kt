@@ -103,8 +103,9 @@ fun TrackyCaloriesProgress(
     modifier: Modifier = Modifier,
     animationKey: Any = Unit
 ) {
-    val remaining = goal - consumed + burned
-    val targetProgress = (consumed.toFloat() / goal).coerceIn(0f, 1f)
+    val net = consumed - burned
+    val remaining = goal - net
+    val targetProgress = (net / goal).coerceIn(0f, 1f)
     val isOverGoal = remaining < 0
     
     // Animated progress that resets when data changes
@@ -128,12 +129,12 @@ fun TrackyCaloriesProgress(
         ) {
             Column {
                 Text(
-                    text = consumed.toSmartString(),
+                    text = if (net < 0) "0" else net.toSmartString(),
                     style = TrackyTypography.HeadlineLarge,
                     color = TrackyColors.TextPrimary
                 )
                 Text(
-                    text = "consumed",
+                    text = "net intake",
                     style = TrackyTypography.LabelSmall,
                     color = TrackyColors.TextTertiary
                 )
@@ -155,15 +156,36 @@ fun TrackyCaloriesProgress(
 
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
-        TrackyProgress(
-            progress = animatedProgress.value,
-            showWarning = isOverGoal,
-            gradient = Brush.horizontalGradient(
+        // Progress Bar Logic
+        // Blue (Default): < 98%
+        // Green (Full/Success): >= 98% AND <= 100% (approx)
+        // Red (Over): Remaining < 0
+        
+        val progressGradient = when {
+            remaining < 0 -> Brush.horizontalGradient( // Exceeded (Red)
+                listOf(
+                    TrackyColors.Error, 
+                    TrackyColors.Error.copy(alpha = 0.6f)
+                )
+            )
+            targetProgress >= 0.98f -> Brush.horizontalGradient( // Full/Goal Met (Green)
+                listOf(
+                    TrackyColors.Success, 
+                    TrackyColors.Success.copy(alpha = 0.6f)
+                )
+            )
+            else -> Brush.horizontalGradient( // Normal (Blue)
                 listOf(
                     TrackyColors.BrandPrimary,
                     TrackyColors.BrandTint
                 )
-            ),
+            )
+        }
+
+        TrackyProgress(
+            progress = animatedProgress.value,
+            showWarning = false, // We handle color via gradient now
+            gradient = progressGradient,
             animated = false // We're handling animation ourselves
         )
 

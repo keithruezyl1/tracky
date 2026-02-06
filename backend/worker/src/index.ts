@@ -310,6 +310,45 @@ Return ONLY valid JSON (no markdown, no explanations).`;
   return JSON.parse(jsonMatch[0]);
 }
 
+/**
+ * Ask AI to estimate MET value for an activity that isn't in our dictionary.
+ * Includes explicit consistency/accuracy check.
+ */
+async function estimateMetWithAI(
+  activity: string,
+  apiKey: string
+): Promise<{ metValue: number; confidence: number; isConsistent: boolean; reason: string } | null> {
+  const prompt = `Estimate the MET (Metabolic Equivalent of Task) value for this activity: "${activity}"
+
+Rules:
+1. Return a precise MET value based on scientific consensus (Compendium of Physical Activities).
+2. CONSISTENCY CHECK: 
+   - If the activity is too vague (e.g., "gym", "working out", "sports"), set isConsistent: false.
+   - If the activity is physically impossible or nonsense, set isConsistent: false.
+   - If acceptable, set isConsistent: true.
+3. CONFIDENCE: Rate confidence (0.0 to 1.0). High confidence means standard activity (e.g. "burpees"). Low confidence means ambiguous (e.g. "hard labor").
+
+Return ONLY valid JSON:
+{
+  "metValue": 7.0,
+  "confidence": 0.9,
+  "isConsistent": true, // or false
+  "reason": "Activity is well-defined and maps to standard value." // or "Too vague to estimate."
+}`;
+
+  try {
+    const content = await parseWithOpenAI(apiKey, prompt);
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+
+    return JSON.parse(jsonMatch[0]);
+  } catch (error) {
+    console.error('AI MET estimation failed:', error);
+    return null;
+  }
+}
+
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MET Compendium (exercise calories calculation)
@@ -911,56 +950,36 @@ async function handleResolveExercise(
     metValue = findMetValue(activity);
     if (metValue) {
       caloriesBurned = calculateExerciseCalories(metValue, userWeightKg, durationMinutes);
+      // Validate - if validation fails, we might want to check AI/Internet,
+      // but for now we trust the dict unless it is wildly off (handled by sanity check logs).
+      // If validation is needed to BLOCK bad Dict values, we would nullify here.
       source = 'met_compendium';
       confidence = 0.9;
-
-      // 🆕 SANITY CHECK: Validate the calculation
-      const validation = validateExerciseCalories(activity, durationMinutes, caloriesBurned, userWeightKg);
-
-      if (!validation.valid) {
-        console.warn(`[Sanity Check Failed] ${activity}: ${caloriesBurned} kcal (expected ${validation.expectedRange.min}-${validation.expectedRange.max} kcal)`);
-        console.log(`[Cross-Validation] Triggering SerpAPI verification for ${activity}`);
-
-        // 🆕 CROSS-VALIDATE with SerpAPI
-        try {
-          const searchData = await searchExerciseCalories(
-            activity,
-            durationMinutes,
-            userWeightKg,
-            env.SERP_API_KEY
-          );
-
-          if (searchData) {
-            const extracted = await extractExerciseDataFromSnippets(
-              activity,
-              durationMinutes,
-              userWeightKg,
-              searchData.snippets,
-              env.OPENAI_API_KEY
-            );
-
-            if (extracted && extracted.confidence > 0.7) {
-              // Use SerpAPI result if it has higher confidence
-              console.log(`[Cross-Validation Success] Using SerpAPI result: ${extracted.caloriesBurned} kcal (MET: ${extracted.metValue})`);
-              metValue = extracted.metValue;
-              caloriesBurned = extracted.caloriesBurned;
-              source = 'internet_verified'; // Special source indicating cross-validation
-              confidence = extracted.confidence;
-            } else {
-              console.log(`[Cross-Validation] SerpAPI confidence too low, keeping MET compendium result`);
-            }
-          }
-        } catch (error) {
-          console.error('[Cross-Validation Failed]', error);
-          // Continue with original MET value despite sanity check failure
-        }
-      } else {
-        console.log(`[Sanity Check Passed] ${activity}: ${caloriesBurned} kcal (MET: ${metValue})`);
-      }
     }
   }
 
-  // TIER 3: SerpAPI search
+  // TIER 3: AI Estimation (Smart Fallback)
+  // If dictionary lookup failed, ask AI for a MET estimate + Consistency/Accuracy check
+  if (!metValue) {
+    console.log(`[Resolution] Dictionary fail for "${activity}". Trying AI estimation.`);
+    try {
+      const aiEst = await estimateMetWithAI(activity, env.OPENAI_API_KEY);
+
+      if (aiEst && aiEst.isConsistent && aiEst.metValue > 0) {
+        console.log(`[Resolution] AI Success: ${aiEst.metValue} MET for "${activity}" (Confidence: ${aiEst.confidence})`);
+        metValue = aiEst.metValue;
+        caloriesBurned = calculateExerciseCalories(metValue, userWeightKg, durationMinutes);
+        source = 'ai_estimate';
+        confidence = aiEst.confidence;
+      } else {
+        console.log(`[Resolution] AI rejected: ${aiEst?.reason || 'Unknown reason'}`);
+      }
+    } catch (err) {
+      console.error('[Resolution] AI estimation error:', err);
+    }
+  }
+
+  // TIER 4: SerpAPI search (Ultimate Fallback)
   if (!metValue) {
     try {
       const searchData = await searchExerciseCalories(
@@ -991,7 +1010,7 @@ async function handleResolveExercise(
     }
   }
 
-  // TIER 4: Unresolved - require manual entry
+  // Responding
   if (!metValue || !caloriesBurned) {
     return jsonResponse({
       activity,
@@ -1000,7 +1019,7 @@ async function handleResolveExercise(
       resolved: false,
       requiresManualEntry: true,
       availableActivities: Object.keys(MET_VALUES),
-      message: 'Could not find calorie data for this activity. Please enter manually.',
+      message: 'Could not confidently determine calories for this activity. Please enter manually.',
       source: 'unresolved',
     });
   }

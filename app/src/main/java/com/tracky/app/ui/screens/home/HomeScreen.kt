@@ -312,10 +312,15 @@ fun HomeScreen(
                         val isToday = date == today
 
                         val dayStatus = weekSummaries[date]?.let { summary: DailySummary ->
-                            if (summary.foodCalories > (summary.goal?.calorieGoalKcal ?: currentGoal?.calorieGoalKcal ?: 2000f)) {
-                                DayStatus.FAILURE
-                            } else if (summary.foodCalories > 0) {
-                                DayStatus.SUCCESS
+                            val goal = summary.goal?.calorieGoalKcal ?: currentGoal?.calorieGoalKcal ?: 2000f
+                            // Net Calories Logic: Goal + Exercise - Food
+                            // If Food > Goal + Exercise, then remaining < 0 (Over)
+                            val remaining = goal + summary.exerciseCalories - summary.foodCalories
+
+                            if (remaining < 0) {
+                                DayStatus.FAILURE // Red (Over budget)
+                            } else if (summary.foodCalories > 0 || summary.exerciseCalories > 0) {
+                                DayStatus.SUCCESS // Green (Healthy/Within budget with logs)
                             } else {
                                 DayStatus.NONE
                             }

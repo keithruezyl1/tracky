@@ -39,6 +39,7 @@ class EntryDetailViewModel @Inject constructor(
     private val foodsRepository: FoodsRepository,
     private val backendApi: TrackyBackendApi,
     private val profileRepository: ProfileRepository,
+    private val weightRepository: com.tracky.app.data.repository.WeightRepository,
     private val soundManager: com.tracky.app.ui.sound.SoundManager,
     private val hapticManager: com.tracky.app.ui.haptics.HapticManager
 ) : ViewModel() {
@@ -91,6 +92,24 @@ class EntryDetailViewModel @Inject constructor(
     // ─────────────────────────────────────────────────────────────────────────────
     // Food Entry Actions
     // ─────────────────────────────────────────────────────────────────────────────
+
+    // Helper to get current weight dynamically
+    private suspend fun getCurrentWeight(): Float {
+        // Priority 1: Latest weight entry from tracker
+        val latestWeight = weightRepository.getLatestEntryOnce()
+        if (latestWeight != null && latestWeight.weightKg > 0) {
+            return latestWeight.weightKg
+        }
+        
+        // Priority 2: Profile weight
+        val profile = profileRepository.getProfileOnce()
+        if (profile != null && profile.currentWeightKg > 0) {
+            return profile.currentWeightKg
+        }
+        
+        // No valid weight found
+        return 0f
+    }
 
     fun addFoodItem(name: String, quantity: Float, unit: String) {
         viewModelScope.launch {
@@ -195,8 +214,7 @@ class EntryDetailViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val currentEntry = _uiState.value.exerciseEntry ?: return@launch
-                val profile = profileRepository.getProfileOnce()
-                val userWeightKg = profile?.currentWeightKg ?: 70f
+                val userWeightKg = getCurrentWeight()
                 
                 // Resolve
                 val newItem = try {
@@ -266,8 +284,7 @@ class EntryDetailViewModel @Inject constructor(
             try {
                 val dbEntry = loggingRepository.getExerciseEntryById(entry.id)
                 val dbItems = dbEntry?.items ?: emptyList()
-                val profile = profileRepository.getProfileOnce()
-                val userWeightKg = profile?.currentWeightKg ?: 70f
+                val userWeightKg = getCurrentWeight()
                 
                 // Parallel resolve for changed items
                 val finalItems = coroutineScope {
