@@ -170,7 +170,7 @@ fun SettingsScreen(
             TrackySectionTitle(text = "About")
 
             TrackyCard {
-                SettingsRow("Version", "3.0.0")
+                SettingsRow("Version", "4.0")
             }
 
             // Reset section
