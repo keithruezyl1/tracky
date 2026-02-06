@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -96,11 +98,25 @@ fun TrackyCaloriesProgress(
     consumed: Int,
     burned: Int,
     goal: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    animationKey: Any = Unit
 ) {
     val remaining = goal - consumed + burned
-    val progress = (consumed.toFloat() / goal).coerceIn(0f, 1f)
+    val targetProgress = (consumed.toFloat() / goal).coerceIn(0f, 1f)
     val isOverGoal = remaining < 0
+    
+    // Animated progress that resets when data changes
+    val animatedProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+    
+    LaunchedEffect(consumed, burned, goal) {
+        animatedProgress.snapTo(0f)
+        animatedProgress.animateTo(
+            targetValue = targetProgress,
+            animationSpec = androidx.compose.animation.core.tween(
+                durationMillis = TrackyTokens.Animation.DurationNavigation
+            )
+        )
+    }
 
     Column(modifier = modifier) {
         Row(
@@ -138,14 +154,15 @@ fun TrackyCaloriesProgress(
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
         TrackyProgress(
-            progress = progress,
+            progress = animatedProgress.value,
             showWarning = isOverGoal,
             gradient = Brush.horizontalGradient(
                 listOf(
                     TrackyColors.BrandPrimary,
                     TrackyColors.BrandTint
                 )
-            )
+            ),
+            animated = false // We're handling animation ourselves
         )
 
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))

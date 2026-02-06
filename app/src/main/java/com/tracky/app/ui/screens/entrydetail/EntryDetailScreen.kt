@@ -358,7 +358,7 @@ private fun FoodItemRow(item: FoodItem) {
                 TrackyBodyText(text = item.name)
                 item.matchedName?.let { matched ->
                     TrackyBodySmall(
-                        text = "Matched: $matched",
+                        text = matched,
                         color = TrackyColors.TextTertiary
                     )
                 }

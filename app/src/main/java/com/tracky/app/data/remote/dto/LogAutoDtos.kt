@@ -30,5 +30,7 @@ data class ParsedExerciseDto(
     val durationMinutes: Int = 30,
     val intensity: String = "moderate",
     val confidence: Float = 0.5f,
-    val suggestedQueries: List<String> = emptyList()
+    val suggestedQueries: List<String> = emptyList(),
+    val metValue: Float? = null,  // MET value if extracted from image
+    val caloriesBurned: Int? = null  // Calories if extracted from image
 )

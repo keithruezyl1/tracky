@@ -29,6 +29,7 @@ import com.tracky.app.ui.components.TrackyBottomSheet
 import com.tracky.app.ui.components.TrackyDivider
 import com.tracky.app.ui.components.TrackyInput
 import com.tracky.app.ui.components.TrackySheetActions
+import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
 
 /**
@@ -129,12 +130,12 @@ private fun ActionItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isDestructive) TrackyTokens.Colors.Error else TrackyTokens.Colors.TextSecondary
+            tint = if (isDestructive) TrackyColors.Error else TrackyColors.TextSecondary
         )
         Spacer(modifier = Modifier.width(TrackyTokens.Spacing.M))
         TrackyBodyText(
             text = label,
-            color = if (isDestructive) TrackyTokens.Colors.Error else TrackyTokens.Colors.TextPrimary
+            color = if (isDestructive) TrackyColors.Error else TrackyColors.TextPrimary
         )
     }
 }

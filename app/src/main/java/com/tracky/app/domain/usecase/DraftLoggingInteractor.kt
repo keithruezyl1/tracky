@@ -212,6 +212,44 @@ class DraftLoggingInteractor @Inject constructor(
         }
     }
 
+    suspend fun draftExerciseFromImage(imageBase64: String, date: LocalDate) {
+        _draftState.value = DraftState.Drafting
+        try {
+            val profile = profileRepository.getProfileOnce()
+            val userWeightKg = profile?.currentWeightKg ?: 70f
+            val response = backendApi.logExercise(LogExerciseRequest(text = null, imageBase64 = imageBase64, userWeightKg = userWeightKg))
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null && body.exercises.isNotEmpty()) {
+                    val draftItems = body.exercises.map { parsed ->
+                        DraftExerciseItem(
+                            activity = sentenceCase(parsed.activity),
+                            durationMinutes = parsed.durationMinutes,
+                            metValue = parsed.metValue ?: 0f,  // Use MET from image if available
+                            caloriesBurned = parsed.caloriesBurned ?: 0,  // Use calories from image if available
+                            intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
+                            resolved = parsed.caloriesBurned != null  // Mark as resolved if calories were extracted from image
+                        )
+                    }
+                    val exerciseDraft = DraftData.ExerciseDraft(
+                        items = draftItems,
+                        totalCalories = draftItems.sumOf { it.caloriesBurned },
+                        totalDurationMinutes = draftItems.sumOf { it.durationMinutes },
+                        date = date
+                    )
+                    _draftState.value = DraftState.ExerciseDraft(exerciseDraft)
+                    // Only resolve items that don't already have calories from the image
+                    if (draftItems.any { !it.resolved }) {
+                        resolveExerciseDraft(exerciseDraft)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            _draftState.value = DraftState.Error(e.message ?: "Unknown error")
+        }
+    }
+
+
     private suspend fun resolveExerciseDraft(draft: DraftData.ExerciseDraft) {
         val profile = profileRepository.getProfileOnce()
         val userWeightKg = profile?.currentWeightKg ?: 70f
@@ -312,6 +350,73 @@ class DraftLoggingInteractor @Inject constructor(
                         resolveExerciseDraft(exerciseDraft)
                     } else {
                         _draftState.value = DraftState.Idle
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            _draftState.value = DraftState.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    suspend fun draftAutoFromImage(imageBase64: String, date: LocalDate) {
+        _draftState.value = DraftState.Drafting
+        try {
+            val profile = profileRepository.getProfileOnce()
+            val userWeightKg = profile?.currentWeightKg ?: 70f
+            val response = backendApi.logAuto(LogAutoRequest(text = null, imageBase64 = imageBase64, userWeightKg = userWeightKg))
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null) {
+                    if (body.entry_type == "food") {
+                        val draftItems = body.food_items.map { dto ->
+                            DraftFoodItem(
+                                name = sentenceCase(dto.name),
+                                matchedName = null,
+                                quantity = dto.quantity.toDouble(),
+                                unit = dto.unit,
+                                calories = 0,
+                                carbsG = 0f,
+                                proteinG = 0f,
+                                fatG = 0f,
+                                provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                                resolved = false
+                            )
+                        }
+                        val foodDraft = DraftData.FoodDraft(
+                            items = draftItems,
+                            totalCalories = 0,
+                            totalCarbsG = 0f,
+                            totalProteinG = 0f,
+                            totalFatG = 0f,
+                            narrative = body.narrative,
+                            date = date
+                        )
+                        _draftState.value = DraftState.FoodDraft(foodDraft)
+                        resolveFoodDraft(foodDraft)
+                    } else if (body.entry_type == "exercise") {
+                        val draftItems = body.exercises.map { parsed ->
+                            DraftExerciseItem(
+                                activity = sentenceCase(parsed.activity),
+                                durationMinutes = parsed.durationMinutes,
+                                metValue = parsed.metValue ?: 0f,
+                                caloriesBurned = parsed.caloriesBurned ?: 0,
+                                intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
+                                resolved = parsed.caloriesBurned != null
+                            )
+                        }
+                        val exerciseDraft = DraftData.ExerciseDraft(
+                            items = draftItems,
+                            totalCalories = draftItems.sumOf { it.caloriesBurned },
+                            totalDurationMinutes = draftItems.sumOf { it.durationMinutes },
+                            date = date
+                        )
+                        _draftState.value = DraftState.ExerciseDraft(exerciseDraft)
+                        // Only resolve items that don't already have calories from the image
+                        if (draftItems.any { !it.resolved }) {
+                            resolveExerciseDraft(exerciseDraft)
+                        }
+                    } else {
+                        _draftState.value = DraftState.Error("Could not determine if image contains food or exercise")
                     }
                 }
             }

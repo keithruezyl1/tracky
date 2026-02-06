@@ -20,10 +20,9 @@ const LogFoodRequestSchema = z.object({
 });
 
 const LogExerciseRequestSchema = z.object({
-  text: z.string(),
+  text: z.string().nullable().optional(),
+  imageBase64: z.string().nullable().optional(),
   userWeightKg: z.number().positive(),
-  // durationMinutes removed from top level request schema as it's part of the text parsing now for multiple items
-  // but kept optional for backward compat if needed, though we will focus on text parsing.
 });
 
 const ResolveFoodRequestSchema = z.object({
@@ -248,31 +247,184 @@ async function parseWithOpenAI(
   return data.choices?.[0]?.message?.content || '';
 }
 
+/**
+ * Parse exercise data from image using OpenAI Vision
+ */
+async function parseExerciseFromImage(
+  imageBase64: string,
+  userWeightKg: number,
+  apiKey: string
+): Promise<any> {
+  const prompt = `Analyze this exercise/workout screenshot and extract the following data:
+
+CRITICAL: Look for these fields (common in fitness tracker apps):
+- Activity type (walking, running, cycling, swimming, etc.)
+- Duration (in minutes or HH:MM:SS format)
+- Distance (if shown, in km or miles)
+- Calories burned (if shown)
+- Pace/Speed (if shown)
+- Heart rate data (if shown)
+- Date/Time (if shown)
+
+User weight: ${userWeightKg}kg
+
+Rules:
+1. Extract ALL visible exercise data from the screenshot
+2. If the screenshot shows multiple activities/segments, extract each one
+3. Convert all durations to minutes (e.g., "00:27:36" → 27.6 minutes)
+4. Convert all distances to km (if in miles, convert)
+5. If calories are shown in the screenshot, use that value (high confidence)
+6. If calories NOT shown, leave null (we'll calculate it using MET values)
+7. Identify the activity type accurately (e.g., "walking", "running", "cycling")
+
+Return ONLY valid JSON in this format:
+{
+  "exercises": [
+    {
+      "activity": "walking",
+      "durationMinutes": 27.6,
+      "distanceKm": 2.35,
+      "caloriesBurned": 115,
+      "averagePace": "11:44",
+      "confidence": 0.95,
+      "suggestedQueries": ["walking"]
+    }
+  ]
+}
+
+If the image is NOT an exercise screenshot, return:
+{
+  "exercises": [],
+  "error": "Not an exercise screenshot"
+}
+
+Return ONLY valid JSON (no markdown, no explanations).`;
+
+  const content = await parseWithOpenAI(apiKey, prompt, imageBase64);
+
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Failed to parse AI response');
+  }
+
+  return JSON.parse(jsonMatch[0]);
+}
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MET Compendium (exercise calories calculation)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MET_VALUES: Record<string, number> = {
+  // Walking
   'walking': 3.5,
+  'walking_slow': 2.5,
   'walking_brisk': 4.3,
+  'walking_uphill': 6.0,
+  'walking_stairs': 8.0,
+
+  // Running/Jogging
   'running': 9.8,
+  'jogging': 7.0,
   'running_slow': 8.0,
+  'running_fast': 11.5,
+  'sprinting': 16.0,
+  'trail_running': 9.0,
+
+  // Cycling
   'cycling': 7.5,
   'cycling_slow': 5.8,
+  'cycling_moderate': 8.0,
+  'cycling_fast': 10.0,
+  'cycling_stationary': 6.8,
+  'mountain_biking': 8.5,
+  'spinning': 8.5,
+
+  // Swimming
   'swimming': 8.0,
   'swimming_slow': 6.0,
+  'swimming_laps': 9.5,
+  'swimming_freestyle': 10.0,
+  'swimming_backstroke': 9.5,
+  'swimming_breaststroke': 10.0,
+  'water_aerobics': 5.5,
+
+  // Strength Training
   'weight_training': 5.0,
-  'yoga': 3.0,
-  'hiking': 6.0,
-  'dancing': 5.5,
-  'basketball': 8.0,
-  'soccer': 10.0,
-  'tennis': 7.3,
+  'weight_lifting': 6.0,
+  'bodyweight_exercises': 4.5,
+  'calisthenics': 4.0,
+  'pushups': 3.8,
+  'pullups': 8.0,
+  'squats': 5.5,
+  'deadlifts': 6.0,
+  'bench_press': 6.0,
+  'resistance_training': 5.0,
+
+  // Cardio Machines
   'elliptical': 5.0,
   'rowing': 7.0,
-  'jump_rope': 11.0,
-  'stretching': 2.3,
+  'rowing_machine': 7.0,
+  'stairmaster': 9.0,
+  'stair_climbing': 9.0,
+  'treadmill': 7.0,
+  'stationary_bike': 6.8,
+
+  // Sports
+  'basketball': 8.0,
+  'soccer': 10.0,
+  'football': 8.0,
+  'tennis': 7.3,
+  'volleyball': 4.0,
+  'badminton': 5.5,
+  'table_tennis': 4.0,
+  'racquetball': 7.0,
+  'squash': 12.0,
+  'golf': 4.8,
+  'baseball': 5.0,
+  'softball': 5.0,
+
+  // Martial Arts & Combat
+  'boxing': 9.0,
+  'kickboxing': 10.0,
+  'martial_arts': 10.0,
+  'karate': 10.0,
+  'taekwondo': 10.0,
+  'judo': 10.0,
+  'wrestling': 6.0,
+  'mma': 10.0,
+
+  // Dance & Aerobics
+  'dancing': 5.5,
+  'aerobics': 7.3,
+  'zumba': 8.5,
+  'ballet': 5.0,
+  'hip_hop_dance': 5.0,
+  'ballroom_dancing': 5.5,
+
+  // Flexibility & Mind-Body
+  'yoga': 3.0,
   'pilates': 3.0,
+  'stretching': 2.3,
+  'tai_chi': 3.0,
+
+  // Other Activities
+  'hiking': 6.0,
+  'rock_climbing': 8.0,
+  'climbing': 8.0,
+  'jump_rope': 11.0,
+  'jumping_rope': 11.0,
+  'skipping': 11.0,
+  'skating': 7.0,
+  'rollerblading': 7.0,
+  'skiing': 7.0,
+  'snowboarding': 5.3,
+  'surfing': 3.0,
+  'kayaking': 5.0,
+  'canoeing': 3.5,
+  'gardening': 4.0,
+  'yard_work': 4.0,
+  'house_cleaning': 3.5,
 };
 
 function calculateExerciseCalories(
@@ -302,6 +454,65 @@ function findMetValue(activity: string): number | null {
 
   return null;
 }
+
+/**
+ * Sanity check exercise calorie calculations
+ * Returns true if calories seem reasonable, false if suspiciously low/high
+ */
+function validateExerciseCalories(
+  activity: string,
+  durationMinutes: number,
+  caloriesBurned: number,
+  userWeightKg: number
+): { valid: boolean; expectedRange: { min: number; max: number } } {
+  const hours = durationMinutes / 60;
+
+  // Expected calorie ranges per hour for 70kg person
+  const baseRanges: Record<string, { min: number; max: number }> = {
+    'walking': { min: 150, max: 300 },
+    'jogging': { min: 400, max: 600 },
+    'running': { min: 600, max: 1000 },
+    'cycling': { min: 300, max: 700 },
+    'swimming': { min: 400, max: 800 },
+    'weight_training': { min: 200, max: 400 },
+    'weight_lifting': { min: 200, max: 400 },
+    'basketball': { min: 400, max: 700 },
+    'soccer': { min: 500, max: 900 },
+    'yoga': { min: 100, max: 250 },
+    'pilates': { min: 100, max: 250 },
+    'hiking': { min: 300, max: 600 },
+    'dancing': { min: 250, max: 500 },
+    'boxing': { min: 450, max: 800 },
+    'martial_arts': { min: 500, max: 900 },
+  };
+
+  // Find matching activity category
+  const activityLower = activity.toLowerCase();
+  let range = { min: 100, max: 1200 }; // Default wide range
+
+  for (const [key, value] of Object.entries(baseRanges)) {
+    if (activityLower.includes(key)) {
+      range = value;
+      break;
+    }
+  }
+
+  // Adjust for user weight (scale from 70kg baseline)
+  const weightFactor = userWeightKg / 70;
+  const expectedMin = Math.round(range.min * hours * weightFactor);
+  const expectedMax = Math.round(range.max * hours * weightFactor);
+
+  // Allow 30% margin for variation
+  const margin = 0.3;
+  const valid = caloriesBurned >= expectedMin * (1 - margin) &&
+    caloriesBurned <= expectedMax * (1 + margin);
+
+  return {
+    valid,
+    expectedRange: { min: expectedMin, max: expectedMax }
+  };
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Handlers
@@ -471,50 +682,124 @@ async function handleLogExercise(
     return jsonResponse({ error: 'Invalid request', details: parsed.error.issues }, 400);
   }
 
-  const { text, userWeightKg } = parsed.data;
+  const { text, imageBase64, userWeightKg } = parsed.data;
 
-  // Build prompt for Gemini - parse exercise activity
-  const prompt = `Parse the following exercise description into structured data.
+  // Require either text or image
+  if (!text && !imageBase64) {
+    return jsonResponse({ error: 'Either text or image is required' }, 400);
+  }
 
-User input: "${text}"
+  let result: any;
 
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
+  // IMAGE-BASED PARSING
+  if (imageBase64) {
+    console.log(`[Exercise Image Parsing] Processing image, user weight: ${userWeightKg}kg`);
+
+    try {
+      result = await parseExerciseFromImage(imageBase64, userWeightKg, env.OPENAI_API_KEY);
+
+      if (result.error || !result.exercises || result.exercises.length === 0) {
+        return jsonResponse({
+          error: 'Could not extract exercise data from image',
+          details: result.error || 'No exercises found in the image'
+        }, 400);
+      }
+
+      console.log(`[Exercise Image Parsing] Extracted exercises:`, JSON.stringify(result.exercises));
+    } catch (error) {
+      console.error('[Exercise Image Parsing] Failed:', error);
+      return jsonResponse({
+        error: 'Failed to process exercise image',
+        details: String(error)
+      }, 500);
+    }
+  }
+  // TEXT-BASED PARSING
+  else {
+
+    // Build prompt for AI - parse exercise activity with explicit MET guidance
+    const prompt = `Parse this exercise input into structured data: "${text}"
+
+CRITICAL: Accurately identify exercise intensity and map to correct MET values:
+- Walking (slow): 2.5 MET
+- Walking (normal): 3.5 MET  
+- Walking (brisk/fast): 4.3 MET
+- Jogging: 7.0 MET
+- Running: 9.8 MET
+- Running (fast): 11.5 MET
+- Sprinting: 16.0 MET
+- Cycling (slow): 5.8 MET
+- Cycling (moderate): 7.5 MET
+- Cycling (fast): 10.0 MET
+- Swimming: 8.0 MET
+- Weight training: 5.0 MET
+- Basketball: 8.0 MET
+- Soccer: 10.0 MET
+- Tennis: 7.3 MET
+- Yoga: 3.0 MET
+- Pilates: 3.0 MET
+- Hiking: 6.0 MET
+- Boxing: 9.0 MET
+- Jump rope: 11.0 MET
+
+User weight: ${userWeightKg}kg
+
+Rules:
+1. Extract ALL exercises mentioned (support multi-item: "jogging 30 min and walking 15 min")
+2. For each exercise, determine:
+   - Exact activity name (match to MET database above)
+   - Duration in minutes
+   - Intensity level (if mentioned: light/moderate/vigorous)
+3. DO NOT underestimate intensity - "jogging" is 7.0 MET, NOT walking (3.5 MET)
+4. If user says "running", use 9.8 MET unless they specify "slow" or "fast"
+5. Return as JSON array with exercises
+
+Example output for "jogging 30 minutes and walking 15 minutes":
 {
   "exercises": [
     {
-      "activity": "normalized activity name (e.g., 'running', 'cycling', 'weight_training')",
-      "durationMinutes": 30, // estimated duration in minutes (assume 30 if unclear)
-      "intensity": "low/moderate/high",
+      "activity": "jogging",
+      "durationMinutes": 30,
+      "intensity": "moderate",
       "confidence": 0.9,
-      "suggestedQueries": ["running", "jogging"]
+      "suggestedQueries": ["jogging", "running"]
+    },
+    {
+      "activity": "walking",
+      "durationMinutes": 15,
+      "intensity": "normal",
+      "confidence": 0.9,
+      "suggestedQueries": ["walking"]
     }
   ]
 }
 
-IMPORTANT:
-- Do NOT invent or estimate calorie values
-- Normalize activity to common exercise categories
-- If multiple exercises are mentioned (e.g. "run then walk"), split them into separate objects
-- If duration not specified, assume 30 minutes and note as Assumption`;
+Return ONLY valid JSON (no markdown, no explanations).`;
 
-  try {
-    const aiResponse = await parseWithOpenAI(env.OPENAI_API_KEY, prompt);
+    try {
+      const aiResponse = await parseWithOpenAI(env.OPENAI_API_KEY, prompt);
 
-    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return jsonResponse({ error: 'Failed to parse AI response' }, 500);
+      console.log(`[Exercise Parsing] Input: "${text}"`);
+      console.log(`[Exercise Parsing] User weight: ${userWeightKg}kg`);
+
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return jsonResponse({ error: 'Failed to parse AI response' }, 500);
+      }
+
+      result = JSON.parse(jsonMatch[0]);
+
+      console.log(`[Exercise Parsing] Parsed exercises:`, JSON.stringify(result.exercises));
+    } catch (error) {
+      return jsonResponse({ error: 'Failed to process exercise log', details: String(error) }, 500);
     }
-
-    const result = JSON.parse(jsonMatch[0]);
-
-    return jsonResponse({
-      status: 'draft',
-      exercises: result.exercises || [],
-      requiresConfirmation: true,
-    });
-  } catch (error) {
-    return jsonResponse({ error: 'Failed to process exercise log', details: String(error) }, 500);
   }
+
+  return jsonResponse({
+    status: 'draft',
+    exercises: result.exercises || [],
+    requiresConfirmation: true,
+  });
 }
 
 /**
@@ -608,21 +893,117 @@ async function handleResolveExercise(
 
   const { activity, durationMinutes, userWeightKg, metValue: providedMet } = parsed.data;
 
-  // Find MET value from compendium or use provided
-  const metValue = providedMet || findMetValue(activity);
+  let metValue: number | null = null;
+  let caloriesBurned: number | null = null;
+  let source: string = 'unresolved';
+  let confidence: number = 0;
 
+  // TIER 1: Use provided MET value (user override)
+  if (providedMet) {
+    metValue = providedMet;
+    caloriesBurned = calculateExerciseCalories(metValue, userWeightKg, durationMinutes);
+    source = 'user_override';
+    confidence = 1.0;
+  }
+
+  // TIER 2: MET Compendium lookup
   if (!metValue) {
+    metValue = findMetValue(activity);
+    if (metValue) {
+      caloriesBurned = calculateExerciseCalories(metValue, userWeightKg, durationMinutes);
+      source = 'met_compendium';
+      confidence = 0.9;
+
+      // 🆕 SANITY CHECK: Validate the calculation
+      const validation = validateExerciseCalories(activity, durationMinutes, caloriesBurned, userWeightKg);
+
+      if (!validation.valid) {
+        console.warn(`[Sanity Check Failed] ${activity}: ${caloriesBurned} kcal (expected ${validation.expectedRange.min}-${validation.expectedRange.max} kcal)`);
+        console.log(`[Cross-Validation] Triggering SerpAPI verification for ${activity}`);
+
+        // 🆕 CROSS-VALIDATE with SerpAPI
+        try {
+          const searchData = await searchExerciseCalories(
+            activity,
+            durationMinutes,
+            userWeightKg,
+            env.SERP_API_KEY
+          );
+
+          if (searchData) {
+            const extracted = await extractExerciseDataFromSnippets(
+              activity,
+              durationMinutes,
+              userWeightKg,
+              searchData.snippets,
+              env.OPENAI_API_KEY
+            );
+
+            if (extracted && extracted.confidence > 0.7) {
+              // Use SerpAPI result if it has higher confidence
+              console.log(`[Cross-Validation Success] Using SerpAPI result: ${extracted.caloriesBurned} kcal (MET: ${extracted.metValue})`);
+              metValue = extracted.metValue;
+              caloriesBurned = extracted.caloriesBurned;
+              source = 'internet_verified'; // Special source indicating cross-validation
+              confidence = extracted.confidence;
+            } else {
+              console.log(`[Cross-Validation] SerpAPI confidence too low, keeping MET compendium result`);
+            }
+          }
+        } catch (error) {
+          console.error('[Cross-Validation Failed]', error);
+          // Continue with original MET value despite sanity check failure
+        }
+      } else {
+        console.log(`[Sanity Check Passed] ${activity}: ${caloriesBurned} kcal (MET: ${metValue})`);
+      }
+    }
+  }
+
+  // TIER 3: SerpAPI search
+  if (!metValue) {
+    try {
+      const searchData = await searchExerciseCalories(
+        activity,
+        durationMinutes,
+        userWeightKg,
+        env.SERP_API_KEY
+      );
+
+      if (searchData) {
+        const extracted = await extractExerciseDataFromSnippets(
+          activity,
+          durationMinutes,
+          userWeightKg,
+          searchData.snippets,
+          env.OPENAI_API_KEY
+        );
+
+        if (extracted) {
+          metValue = extracted.metValue;
+          caloriesBurned = extracted.caloriesBurned;
+          source = 'internet';
+          confidence = extracted.confidence;
+        }
+      }
+    } catch (error) {
+      console.error('SerpAPI exercise resolution failed:', error);
+    }
+  }
+
+  // TIER 4: Unresolved - require manual entry
+  if (!metValue || !caloriesBurned) {
     return jsonResponse({
       activity,
       durationMinutes,
+      userWeightKg,
       resolved: false,
       requiresManualEntry: true,
       availableActivities: Object.keys(MET_VALUES),
-      message: 'Could not find MET value for this activity. Please select from available activities or provide calories manually.',
+      message: 'Could not find calorie data for this activity. Please enter manually.',
+      source: 'unresolved',
     });
   }
-
-  const caloriesBurned = calculateExerciseCalories(metValue, userWeightKg, durationMinutes);
 
   return jsonResponse({
     activity,
@@ -630,8 +1011,9 @@ async function handleResolveExercise(
     metValue,
     caloriesBurned,
     userWeightKg,
-    source: 'met_compendium',
-    formula: `${metValue} MET x ${userWeightKg}kg x ${(durationMinutes / 60).toFixed(2)}h = ${caloriesBurned} kcal`,
+    source,
+    confidence,
+    formula: `${metValue.toFixed(1)} MET × ${userWeightKg}kg × ${(durationMinutes / 60).toFixed(2)}h = ${caloriesBurned} kcal`,
     resolved: true,
   });
 }
@@ -688,6 +1070,94 @@ async function searchSerpApi(
   const data = await response.json() as any;
   return data.organic_results || [];
 }
+
+/**
+ * Search for exercise calorie data using SerpAPI
+ */
+async function searchExerciseCalories(
+  activity: string,
+  durationMinutes: number,
+  userWeightKg: number,
+  apiKey: string
+): Promise<{ snippets: string; searchResults: any[] } | null> {
+  const weightLbs = Math.round(userWeightKg * 2.20462);
+  const query = `${activity} ${durationMinutes} minutes calories burned ${weightLbs} lbs`;
+
+  const url = `${SERP_API_BASE_URL}?engine=google&q=${encodeURIComponent(query)}&api_key=${apiKey}&num=5`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    console.error(`SerpAPI error: ${response.status}`);
+    return null;
+  }
+
+  const data = await response.json() as any;
+  const searchResults = data.organic_results || [];
+
+  if (searchResults.length === 0) return null;
+
+  // Extract snippets
+  const snippets = searchResults.slice(0, 3).map((r: any) =>
+    `Title: ${r.title}\nSnippet: ${r.snippet}`
+  ).join('\n\n');
+
+  return { snippets, searchResults };
+}
+
+/**
+ * Extract exercise calorie data from search snippets using AI
+ */
+async function extractExerciseDataFromSnippets(
+  activity: string,
+  durationMinutes: number,
+  userWeightKg: number,
+  snippets: string,
+  openaiApiKey: string
+): Promise<{ caloriesBurned: number; metValue: number; confidence: number } | null> {
+  const prompt = `Extract exercise calorie data for "${activity}" (${durationMinutes} minutes, ${userWeightKg}kg bodyweight) SOLELY from these search results.
+
+Search Results:
+${snippets}
+
+Rules:
+1. ONLY use data explicitly in the snippets. Do NOT guess.
+2. Prefer sources like: Mayo Clinic, Harvard Health, ACE Fitness, Compendium of Physical Activities
+3. If snippets show calories for different durations/weights, calculate proportionally
+4. Return MET value if mentioned, otherwise derive from: MET ≈ (kcal/hr) / weight_kg
+5. Sanity checks:
+   - Walking: 150-300 kcal/hour for 70kg person
+   - Running: 600-1000 kcal/hour for 70kg person
+   - Strength training: 200-400 kcal/hour for 70kg person
+
+Return ONLY valid JSON (no markdown):
+{
+  "caloriesBurned": 250,
+  "metValue": 7.5,
+  "confidence": 0.85
+}
+
+Confidence scoring:
+- 0.9-1.0: Exact match from credible source
+- 0.7-0.8: Good approximation from snippet
+- <0.5: Return null instead`;
+
+  try {
+    const aiResponse = await parseWithOpenAI(openaiApiKey, prompt);
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      if (result && result.confidence > 0.5) {
+        return result;
+      }
+    }
+  } catch (error) {
+    console.error('AI extraction failed:', error);
+  }
+
+  return null;
+}
+
 
 async function handleResolveInternet(
   request: Request,

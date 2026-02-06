@@ -179,7 +179,7 @@ fun HomeScreen(
         uri?.let {
             val base64 = uriToBase64(context, it)
             base64?.let { encoded ->
-                viewModel.logFoodFromImage(encoded)
+                viewModel.logAutoFromImage(encoded)
             }
         }
     }
@@ -217,12 +217,12 @@ fun HomeScreen(
         CameraCaptureScreen(
             onImageCaptured = { base64 ->
                 showCamera = false
-                viewModel.logFoodFromImage(base64)
+                viewModel.logAutoFromImage(base64)
             },
             onGallerySelected = { uri ->
                 showCamera = false
                 val base64 = uriToBase64(context, uri)
-                base64?.let { viewModel.logFoodFromImage(it) }
+                base64?.let { viewModel.logAutoFromImage(it) }
             },
             onDismiss = { showCamera = false }
         )

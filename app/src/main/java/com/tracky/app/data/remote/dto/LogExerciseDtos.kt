@@ -8,7 +8,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class LogExerciseRequest(
-    val text: String,
+    val text: String? = null,
+    val imageBase64: String? = null,
     val userWeightKg: Float,
     val durationMinutes: Int? = null
 )
@@ -40,7 +41,8 @@ data class ResolveExerciseResponse(
     val metValue: Float? = null,
     val caloriesBurned: Int? = null,
     val userWeightKg: Float? = null,
-    val source: String? = null,
+    val source: String? = null, // 'met_compendium', 'internet', 'user_override', 'unresolved'
+    val confidence: Float? = null, // 0.0-1.0
     val formula: String? = null,
     val resolved: Boolean,
     val requiresManualEntry: Boolean? = null,

@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -77,9 +79,21 @@ fun TrackyCircularMacroProgress(
     target: Float,
     unit: String = "g",
     color: Color = TrackyColors.BrandPrimary,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    animationKey: Any = Unit
 ) {
-    val progress = if (target > 0) consumed / target else 0f
+    val targetProgress = if (target > 0) consumed / target else 0f
+    
+    // Animated progress that resets when data changes
+    val animatedProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+    
+    androidx.compose.runtime.LaunchedEffect(consumed, target) {
+        animatedProgress.snapTo(0f)
+        animatedProgress.animateTo(
+            targetValue = targetProgress,
+            animationSpec = androidx.compose.animation.core.tween(durationMillis = 1000)
+        )
+    }
     
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -87,7 +101,7 @@ fun TrackyCircularMacroProgress(
     ) {
         Box(contentAlignment = Alignment.Center) {
             TrackyCircularProgress(
-                progress = progress,
+                progress = animatedProgress.value,
                 modifier = Modifier.size(56.dp),
                 color = color,
                 trackColor = color.copy(alpha = 0.2f),

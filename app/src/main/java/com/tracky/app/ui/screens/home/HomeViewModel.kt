@@ -255,7 +255,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun logFoodFromImage(imageBase64: String) {
+    fun logAutoFromImage(imageBase64: String) {
         viewModelScope.launch {
             // Respect privacy setting: avoid uploads when storing photos locally.
             if (_uiState.value.storePhotosLocally) {
@@ -265,7 +265,7 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             } else {
-                draftLoggingInteractor.draftFoodFromImage(imageBase64, _selectedDate.value)
+                draftLoggingInteractor.draftAutoFromImage(imageBase64, _selectedDate.value)
             }
         }
     }

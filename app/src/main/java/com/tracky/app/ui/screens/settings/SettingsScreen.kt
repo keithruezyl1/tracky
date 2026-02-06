@@ -147,9 +147,7 @@ fun SettingsScreen(
             TrackySectionTitle(text = "About")
 
             TrackyCard {
-                SettingsRow("Version", "1.0.0")
-                TrackyDivider()
-                SettingsRow("Build", "1")
+                SettingsRow("Version", "2.0.0")
             }
 
             // Reset section

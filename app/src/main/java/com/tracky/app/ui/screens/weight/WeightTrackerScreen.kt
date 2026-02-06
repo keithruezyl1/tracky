@@ -49,6 +49,7 @@ import com.tracky.app.ui.components.TrackyNumberInput
 import com.tracky.app.ui.components.TrackySectionTitle
 import com.tracky.app.ui.components.TrackySheetActions
 import com.tracky.app.ui.components.TrackyTopBarWithBack
+import com.tracky.app.ui.components.WeightChart
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
 import java.util.Locale
@@ -155,23 +156,25 @@ fun WeightTrackerScreen(
 
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
 
-            // Chart Placeholder
-            TrackyCard(modifier = Modifier.height(200.dp)) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (uiState.entries.size < 2) {
+            // Chart
+            if (uiState.entries.size < 2) {
+                TrackyCard(modifier = Modifier.height(200.dp)) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
                         TrackyBodySmall(
                             text = "Not enough data for chart yet",
                             color = TrackyColors.TextTertiary
                         )
-                    } else {
-                        TrackyBodySmall(
-                            text = "Chart showing ${uiState.entries.size} data points",
-                            color = TrackyColors.BrandPrimary
-                        )
                     }
+                }
+            } else {
+                TrackyCard {
+                    WeightChart(
+                        entries = uiState.entries,
+                        targetWeightKg = uiState.targetWeightKg
+                    )
                 }
             }
 

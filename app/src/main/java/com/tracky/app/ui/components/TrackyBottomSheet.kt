@@ -66,7 +66,7 @@ fun TrackyBottomSheet(
         containerColor = TrackyColors.Surface,
         contentColor = TrackyColors.TextPrimary,
         tonalElevation = 0.dp,
-        scrimColor = TrackyTokens.Colors.Neutral900.copy(alpha = 0.32f),
+        scrimColor = TrackyColors.Neutral900.copy(alpha = 0.5f), // Increased opacity for better blur visibility
         dragHandle = null, // Remove the grey divider
         windowInsets = WindowInsets(0)
     ) {
