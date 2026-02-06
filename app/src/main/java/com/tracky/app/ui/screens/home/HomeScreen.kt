@@ -474,7 +474,11 @@ fun HomeScreen(
                                 Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
                             }
                             items(entries, key = { it.id }) { entry ->
-                                Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = TrackyTokens.Spacing.M)
+                                        .padding(bottom = TrackyTokens.Spacing.DenseListSpacing)
+                                ) {
                                     SwipeableRow(
                                         onDelete = { viewModel.deleteFoodEntry(entry.id) }
                                     ) {
@@ -496,7 +500,11 @@ fun HomeScreen(
                                 Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
                             }
                             items(entries, key = { it.id }) { entry ->
-                                Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = TrackyTokens.Spacing.M)
+                                        .padding(bottom = TrackyTokens.Spacing.DenseListSpacing)
+                                ) {
                                     SwipeableRow(
                                         onDelete = { viewModel.deleteExerciseEntry(entry.id) }
                                     ) {
@@ -899,19 +907,28 @@ private fun ExerciseEntryRow(
                 )
                 Spacer(modifier = Modifier.width(TrackyTokens.Spacing.S))
                 Column {
+                    val firstItem = entry.items.firstOrNull()?.activityName ?: "Exercise"
                     TrackyBodyText(
-                        text = entry.activityName.lowercase().replaceFirstChar { it.uppercase() },
+                        text = firstItem.lowercase().replaceFirstChar { it.uppercase() },
                         maxLines = 1
                     )
-                    TrackyBodySmall(
-                        text = "${entry.durationMinutes} min",
-                        color = TrackyColors.TextTertiary
-                    )
+                    
+                    if (entry.items.size > 1) {
+                         TrackyBodySmall(
+                            text = "+${entry.items.size - 1} more items",
+                            color = TrackyColors.TextTertiary
+                        )
+                    } else {
+                        TrackyBodySmall(
+                            text = "${entry.totalDurationMinutes} min",
+                            color = TrackyColors.TextTertiary
+                        )
+                    }
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
                 TrackyBodyText(
-                    text = "-${entry.caloriesBurned} kcal",
+                    text = "-${entry.totalCalories} kcal",
                     color = TrackyColors.Success
                 )
                 TrackyBodySmall(

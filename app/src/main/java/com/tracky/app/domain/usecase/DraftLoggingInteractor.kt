@@ -15,6 +15,7 @@ import com.tracky.app.domain.model.DraftFoodItem
 import com.tracky.app.domain.model.DraftExerciseItem
 import com.tracky.app.domain.model.ExerciseEntry
 import com.tracky.app.domain.model.ExerciseIntensity
+import com.tracky.app.domain.model.ExerciseItem
 import com.tracky.app.domain.model.FoodEntry
 import com.tracky.app.domain.model.FoodItem
 import com.tracky.app.domain.model.Provenance
@@ -28,6 +29,9 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 sealed class DraftState {
     data object Idle : DraftState()
@@ -183,19 +187,20 @@ class DraftLoggingInteractor @Inject constructor(
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body != null && body.exercises.isNotEmpty()) {
-                    val parsed = body.exercises.first()
-                    val exerciseItem = DraftExerciseItem(
-                        activity = sentenceCase(parsed.activity),
-                        durationMinutes = parsed.durationMinutes,
-                        metValue = 0f,
-                        caloriesBurned = 0,
-                        intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
-                        resolved = false
-                    )
+                    val draftItems = body.exercises.map { parsed ->
+                        DraftExerciseItem(
+                            activity = sentenceCase(parsed.activity),
+                            durationMinutes = parsed.durationMinutes,
+                            metValue = 0f,
+                            caloriesBurned = 0,
+                            intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
+                            resolved = false
+                        )
+                    }
                     val exerciseDraft = DraftData.ExerciseDraft(
-                        items = listOf(exerciseItem),
+                        items = draftItems,
                         totalCalories = 0,
-                        totalDurationMinutes = parsed.durationMinutes,
+                        totalDurationMinutes = draftItems.sumOf { it.durationMinutes },
                         date = date
                     )
                     _draftState.value = DraftState.ExerciseDraft(exerciseDraft)
@@ -210,29 +215,45 @@ class DraftLoggingInteractor @Inject constructor(
     private suspend fun resolveExerciseDraft(draft: DraftData.ExerciseDraft) {
         val profile = profileRepository.getProfileOnce()
         val userWeightKg = profile?.currentWeightKg ?: 70f
-        val item = draft.items.first()
+        
         try {
-            val response = backendApi.resolveExercise(ResolveExerciseRequest(
-                activity = item.activity,
-                durationMinutes = item.durationMinutes,
-                userWeightKg = userWeightKg
-            ))
-            if (response.isSuccessful) {
-                val body = response.body()
-                if (body != null) {
-                    val resolvedItem = item.copy(
-                        caloriesBurned = body.caloriesBurned ?: 0,
-                        metValue = body.metValue ?: 0f,
-                        resolved = body.resolved
-                    )
-                    val updatedDraft = draft.copy(
-                        items = listOf(resolvedItem),
-                        totalCalories = body.caloriesBurned ?: 0
-                    )
-                    _draftState.value = DraftState.ExerciseDraft(updatedDraft)
-                }
+            // Resolve all items in parallel
+            val resolvedItems = coroutineScope {
+                draft.items.map { item ->
+                    async {
+                        try {
+                            val response = backendApi.resolveExercise(
+                                ResolveExerciseRequest(
+                                    activity = item.activity,
+                                    durationMinutes = item.durationMinutes,
+                                    userWeightKg = userWeightKg
+                                )
+                            )
+                            if (response.isSuccessful) {
+                                val body = response.body()
+                                if (body != null) {
+                                    item.copy(
+                                        caloriesBurned = body.caloriesBurned ?: 0,
+                                        metValue = body.metValue ?: 0f,
+                                        resolved = body.resolved
+                                    )
+                                } else item
+                            } else item
+                        } catch (e: Exception) {
+                            item
+                        }
+                    }
+                }.awaitAll()
             }
-        } catch (e: Exception) {}
+            
+            val updatedDraft = draft.copy(
+                items = resolvedItems,
+                totalCalories = resolvedItems.sumOf { it.caloriesBurned }
+            )
+            _draftState.value = DraftState.ExerciseDraft(updatedDraft)
+        } catch (e: Exception) {
+            // If parallel execution fails, keep original
+        }
     }
 
     suspend fun draftAutoFromText(text: String, date: LocalDate) {
@@ -271,19 +292,20 @@ class DraftLoggingInteractor @Inject constructor(
                         _draftState.value = DraftState.FoodDraft(foodDraft)
                         resolveFoodDraft(foodDraft)
                     } else if (body.entry_type == "exercise") {
-                        val parsed = body.exercises.first()
-                        val exerciseItem = DraftExerciseItem(
-                            activity = sentenceCase(parsed.activity),
-                            durationMinutes = parsed.durationMinutes,
-                            metValue = 0f,
-                            caloriesBurned = 0,
-                            intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
-                            resolved = false
-                        )
+                        val draftItems = body.exercises.map { parsed ->
+                            DraftExerciseItem(
+                                activity = sentenceCase(parsed.activity),
+                                durationMinutes = parsed.durationMinutes,
+                                metValue = 0f,
+                                caloriesBurned = 0,
+                                intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
+                                resolved = false
+                            )
+                        }
                         val exerciseDraft = DraftData.ExerciseDraft(
-                            items = listOf(exerciseItem),
+                            items = draftItems,
                             totalCalories = 0,
-                            totalDurationMinutes = parsed.durationMinutes,
+                            totalDurationMinutes = draftItems.sumOf { it.durationMinutes },
                             date = date
                         )
                         _draftState.value = DraftState.ExerciseDraft(exerciseDraft)
@@ -301,39 +323,43 @@ class DraftLoggingInteractor @Inject constructor(
     suspend fun confirmFoodDraft(draft: DraftData.FoodDraft, date: LocalDate): ConfirmResult {
         try {
             val now = Clock.System.now()
-            val foodEntries = draft.items.map { item ->
-                FoodEntry(
+            
+            // Create FoodItems from draft items
+            val foodItems = draft.items.mapIndexed { index, item ->
+                FoodItem(
                     id = 0,
-                    date = date.toString(),
-                    time = now.toLocalDateTime(TimeZone.currentSystemDefault()).time.toString(),
-                    timestamp = now.toEpochMilliseconds(),
-                    totalCalories = item.calories,
-                    totalCarbsG = item.carbsG,
-                    totalProteinG = item.proteinG,
-                    totalFatG = item.fatG,
-                    analysisNarrative = draft.narrative,
-                    photoPath = null,
-                    originalInput = "",
-                    items = listOf(
-                        FoodItem(
-                            id = 0,
-                            name = item.name,
-                            matchedName = item.matchedName,
-                            quantity = item.quantity.toFloat(),
-                            unit = item.unit,
-                            calories = item.calories,
-                            carbsG = item.carbsG,
-                            proteinG = item.proteinG,
-                            fatG = item.fatG,
-                            provenance = item.provenance,
-                            displayOrder = 0
-                        )
-                    ),
-                    createdAt = now.toEpochMilliseconds(),
-                    updatedAt = now.toEpochMilliseconds()
+                    name = item.name,
+                    matchedName = item.matchedName,
+                    quantity = item.quantity.toFloat(),
+                    unit = item.unit,
+                    calories = item.calories,
+                    carbsG = item.carbsG,
+                    proteinG = item.proteinG,
+                    fatG = item.fatG,
+                    provenance = item.provenance,
+                    displayOrder = index
                 )
             }
-            foodEntries.forEach { loggingRepository.saveFoodEntry(it) }
+            
+            // Create a single FoodEntry with all items
+            val foodEntry = FoodEntry(
+                id = 0,
+                date = date.toString(),
+                time = now.toLocalDateTime(TimeZone.currentSystemDefault()).time.toString(),
+                timestamp = now.toEpochMilliseconds(),
+                totalCalories = draft.totalCalories,
+                totalCarbsG = draft.totalCarbsG,
+                totalProteinG = draft.totalProteinG,
+                totalFatG = draft.totalFatG,
+                analysisNarrative = draft.narrative,
+                photoPath = null,
+                originalInput = "",
+                items = foodItems,
+                createdAt = now.toEpochMilliseconds(),
+                updatedAt = now.toEpochMilliseconds()
+            )
+            
+            loggingRepository.saveFoodEntry(foodEntry)
             _draftState.value = DraftState.Idle
             return ConfirmResult.Success
         } catch (e: Exception) {
@@ -344,20 +370,32 @@ class DraftLoggingInteractor @Inject constructor(
     suspend fun confirmExerciseDraft(draft: DraftData.ExerciseDraft, date: LocalDate): ConfirmResult {
         try {
             val now = Clock.System.now()
-            val item = draft.items.first()
+            val profile = profileRepository.getProfileOnce()
+            val userWeightKg = profile?.currentWeightKg ?: 0f
+            
+            val exerciseItems = draft.items.mapIndexed { index, item ->
+                ExerciseItem(
+                    id = 0,
+                    activityName = item.activity,
+                    durationMinutes = item.durationMinutes,
+                    metValue = item.metValue,
+                    caloriesBurned = item.caloriesBurned,
+                    intensity = item.intensity,
+                    provenance = Provenance(ProvenanceSource.DATASET, null, 1.0f),
+                    displayOrder = index
+                )
+            }
+            
             val exerciseEntry = ExerciseEntry(
                 id = 0,
                 date = date.toString(),
                 time = now.toLocalDateTime(TimeZone.currentSystemDefault()).time.toString(),
                 timestamp = now.toEpochMilliseconds(),
-                activityName = item.activity,
-                durationMinutes = item.durationMinutes,
-                metValue = item.metValue,
-                userWeightKg = 0f,
-                caloriesBurned = item.caloriesBurned,
-                intensity = item.intensity,
+                items = exerciseItems,
+                totalCalories = draft.totalCalories,
+                totalDurationMinutes = draft.totalDurationMinutes,
+                userWeightKg = userWeightKg,
                 originalInput = "",
-                provenance = Provenance(ProvenanceSource.DATASET, null, 1.0f),
                 createdAt = now.toEpochMilliseconds(),
                 updatedAt = now.toEpochMilliseconds()
             )

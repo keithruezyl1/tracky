@@ -12,11 +12,12 @@ import com.tracky.app.data.repository.LoggingRepository
 import com.tracky.app.data.repository.ProfileRepository
 import com.tracky.app.data.repository.ResolvedFoodResult
 import com.tracky.app.domain.model.ExerciseEntry
+import com.tracky.app.domain.model.ExerciseIntensity
+import com.tracky.app.domain.model.ExerciseItem
 import com.tracky.app.domain.model.FoodEntry
 import com.tracky.app.domain.model.FoodItem
 import com.tracky.app.domain.model.Provenance
 import com.tracky.app.domain.model.ProvenanceSource
-import com.tracky.app.domain.model.SavedFoodItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,9 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 @HiltViewModel
 class EntryDetailViewModel @Inject constructor(
@@ -82,133 +86,115 @@ class EntryDetailViewModel @Inject constructor(
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Food Entry Actions
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    fun addFoodItem(name: String, quantity: Float, unit: String) {
+        viewModelScope.launch {
+            try {
+                val currentEntry = _uiState.value.foodEntry ?: return@launch
+                
+                // Resolve the new item
+                val result = foodsRepository.resolveFood(name, quantity, unit)
+                val newItem = when (result) {
+                    is ResolvedFoodResult.Success -> result.foodItem.copy(displayOrder = currentEntry.items.size)
+                    else -> FoodItem(
+                        name = name,
+                        matchedName = null,
+                        quantity = quantity,
+                        unit = unit,
+                        calories = 0,
+                        carbsG = 0f,
+                        proteinG = 0f,
+                        fatG = 0f,
+                        provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                        displayOrder = currentEntry.items.size
+                    )
+                }
+                
+                // Add to list and update entry
+                val updatedItems = currentEntry.items + newItem
+                val updatedEntry = currentEntry.copy(
+                    items = updatedItems,
+                    totalCalories = updatedItems.sumOf { it.calories },
+                    totalCarbsG = updatedItems.sumOf { it.carbsG.toDouble() }.toFloat(),
+                    totalProteinG = updatedItems.sumOf { it.proteinG.toDouble() }.toFloat(),
+                    totalFatG = updatedItems.sumOf { it.fatG.toDouble() }.toFloat(),
+                    updatedAt = System.currentTimeMillis()
+                )
+                
+                loggingRepository.updateFoodEntry(updatedEntry)
+                _uiState.update { it.copy(foodEntry = updatedEntry) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
     fun updateFoodEntry(entry: FoodEntry) {
         viewModelScope.launch {
             try {
-                val originalEntry = _uiState.value.foodEntry
+                // Reanalyze items if needed
+                val reanalyzedItems = mutableListOf<FoodItem>()
+                // Simple optimization: only re-resolve if content changed would require keeping track of original state precisely.
+                // For now, consistent with previous approach, we check differences. But simpler to just saving changes if passed.
+
+                // Logic: If the passed entry has changes, we should use it.
+                // The Caller (UI) modifies the entry. If we want to support re-resolution on edit, we need to know WHICH item changed.
+                // For this implementation, we assume basic property updates align with UI edits.
+                // If the user edits "Quantity" in the UI, we might want to trigger a re-calc of that item's macros.
                 
-                // Check if content changed (item names, quantities, or units)
-                val contentChanged = originalEntry?.items?.zip(entry.items)?.any { (old, new) ->
-                    old.name != new.name || old.quantity != new.quantity || old.unit != new.unit
-                } ?: true
+                // Let's implement a smart update: Check each item against DB version. If Name/Qty/Unit diff -> Re-resolve.
+                val dbEntry = loggingRepository.getFoodEntryById(entry.id)
+                val dbItems = dbEntry?.items ?: emptyList()
                 
-                if (contentChanged && entry.items.isNotEmpty()) {
-                    // Reanalyze - re-resolve each item
-                    val reanalyzedItems = mutableListOf<FoodItem>()
-                    for ((index, item) in entry.items.withIndex()) {
+                val finalItems = entry.items.mapIndexed { index, item ->
+                    val dbItem = dbItems.getOrNull(index) // Assuming order preserved
+                    if (dbItem == null || 
+                        dbItem.name != item.name || 
+                        dbItem.quantity != item.quantity || 
+                        dbItem.unit != item.unit) {
+                        // Changed or New -> Resolve
                         val result = foodsRepository.resolveFood(item.name, item.quantity, item.unit)
-                        val reanalyzedItem = when (result) {
-                            is ResolvedFoodResult.Success -> result.foodItem.copy(displayOrder = index)
-                            else -> item.copy(
-                                provenance = Provenance(ProvenanceSource.USER_OVERRIDE, null, 0f),
-                                displayOrder = index
-                            )
+                        when (result) {
+                             is ResolvedFoodResult.Success -> result.foodItem.copy(id = item.id, displayOrder = index)
+                             else -> item.copy(displayOrder = index) // Keep user edit if resolve fails
                         }
-                        reanalyzedItems.add(reanalyzedItem)
-                    }
-                    
-                    // Calculate new totals
-                    val reanalyzedEntry = entry.copy(
-                        items = reanalyzedItems,
-                        totalCalories = reanalyzedItems.sumOf { it.calories },
-                        totalCarbsG = reanalyzedItems.sumOf { it.carbsG.toDouble() }.toFloat(),
-                        totalProteinG = reanalyzedItems.sumOf { it.proteinG.toDouble() }.toFloat(),
-                        totalFatG = reanalyzedItems.sumOf { it.fatG.toDouble() }.toFloat(),
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    
-                    loggingRepository.updateFoodEntry(reanalyzedEntry)
-                    _uiState.update { it.copy(foodEntry = reanalyzedEntry) }
-                } else {
-                    // No content change, just save
-                    loggingRepository.updateFoodEntry(entry)
-                    _uiState.update { it.copy(foodEntry = entry) }
-                }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
-            }
-        }
-    }
-
-    fun updateExerciseEntry(entry: ExerciseEntry) {
-        viewModelScope.launch {
-            try {
-                val originalEntry = _uiState.value.exerciseEntry
-                
-                // Check if content changed (activity name or duration)
-                val contentChanged = originalEntry?.let {
-                    it.activityName != entry.activityName || it.durationMinutes != entry.durationMinutes
-                } ?: true
-                
-                if (contentChanged) {
-                    // Reanalyze - re-resolve exercise calories via backend
-                    val profile = profileRepository.getProfileOnce()
-                    val userWeightKg = profile?.currentWeightKg ?: 70f
-                    
-                    val response = backendApi.resolveExercise(
-                        ResolveExerciseRequest(
-                            activity = entry.activityName,
-                            durationMinutes = entry.durationMinutes,
-                            userWeightKg = userWeightKg
-                        )
-                    )
-                    
-                    val reanalyzedEntry = if (response.isSuccessful && response.body()?.resolved == true) {
-                        val resolved = response.body()!!
-                        entry.copy(
-                            caloriesBurned = resolved.caloriesBurned ?: entry.caloriesBurned,
-                            metValue = resolved.metValue ?: entry.metValue,
-                            userWeightKg = userWeightKg,
-                            updatedAt = System.currentTimeMillis()
-                        )
                     } else {
-                        entry.copy(updatedAt = System.currentTimeMillis())
+                        // No change, keep existing (preserving macros)
+                        item
                     }
-                    
-                    loggingRepository.updateExerciseEntry(reanalyzedEntry)
-                    _uiState.update { it.copy(exerciseEntry = reanalyzedEntry) }
-                } else {
-                    // No content change, just save
-                    loggingRepository.updateExerciseEntry(entry)
-                    _uiState.update { it.copy(exerciseEntry = entry) }
                 }
+
+                val reanalyzedEntry = entry.copy(
+                    items = finalItems,
+                    totalCalories = finalItems.sumOf { it.calories },
+                    totalCarbsG = finalItems.sumOf { it.carbsG.toDouble() }.toFloat(),
+                    totalProteinG = finalItems.sumOf { it.proteinG.toDouble() }.toFloat(),
+                    totalFatG = finalItems.sumOf { it.fatG.toDouble() }.toFloat(),
+                    updatedAt = System.currentTimeMillis()
+                )
+                
+                loggingRepository.updateFoodEntry(reanalyzedEntry)
+                _uiState.update { it.copy(foodEntry = reanalyzedEntry) }
+
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
             }
         }
     }
-
-    fun deleteEntry() {
-        viewModelScope.launch {
-            try {
-                if (entryType == "food") {
-                    loggingRepository.deleteFoodEntry(entryId)
-                } else {
-                    loggingRepository.deleteExerciseEntry(entryId)
-                }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
-            }
-        }
-    }
-
+    
     fun deleteFoodItem(item: FoodItem) {
         viewModelScope.launch {
             try {
                 val currentEntry = uiState.value.foodEntry ?: return@launch
-                
-                // Remove the item
-                val updatedItems = currentEntry.items.filter { 
-                    it.id != item.id && it.displayOrder != item.displayOrder 
-                }
+                val updatedItems = currentEntry.items.filter { it.id != item.id || (item.id == 0L && it !== item) }
                 
                 if (updatedItems.isEmpty()) {
-                    // If no items left, delete the whole entry
                     loggingRepository.deleteFoodEntry(currentEntry.id)
-                    // Signal that entry was deleted so UI can navigate back
                     _uiState.update { it.copy(entryDeleted = true) }
                 } else {
-                    // Recalculate totals
                     val updatedEntry = currentEntry.copy(
                         items = updatedItems,
                         totalCalories = updatedItems.sumOf { it.calories },
@@ -225,6 +211,185 @@ class EntryDetailViewModel @Inject constructor(
             }
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Exercise Entry Actions
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    fun addExerciseItem(activityName: String, durationMinutes: Int, intensity: ExerciseIntensity = ExerciseIntensity.MODERATE) {
+        viewModelScope.launch {
+            try {
+                val currentEntry = _uiState.value.exerciseEntry ?: return@launch
+                val profile = profileRepository.getProfileOnce()
+                val userWeightKg = profile?.currentWeightKg ?: 70f
+                
+                // Resolve
+                val newItem = try {
+                    val response = backendApi.resolveExercise(
+                        ResolveExerciseRequest(
+                            activity = activityName,
+                            durationMinutes = durationMinutes,
+                            userWeightKg = userWeightKg
+                        )
+                    )
+                    if (response.isSuccessful && response.body() != null) {
+                        val body = response.body()!!
+                        ExerciseItem(
+                            id = 0,
+                            activityName = activityName,
+                            durationMinutes = durationMinutes,
+                            metValue = body.metValue ?: 0f,
+                            caloriesBurned = body.caloriesBurned ?: 0,
+                            intensity = intensity,
+                            provenance = Provenance(ProvenanceSource.DATASET, null, 1f),
+                            displayOrder = currentEntry.items.size
+                        )
+                    } else {
+                        // Fallback
+                         ExerciseItem(
+                            id = 0,
+                            activityName = activityName,
+                            durationMinutes = durationMinutes,
+                            metValue = 0f,
+                            caloriesBurned = 0,
+                            intensity = intensity,
+                            provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                            displayOrder = currentEntry.items.size
+                        )
+                    }
+                } catch (e: Exception) {
+                     ExerciseItem(
+                        id = 0,
+                        activityName = activityName,
+                        durationMinutes = durationMinutes,
+                        metValue = 0f,
+                        caloriesBurned = 0,
+                        intensity = intensity,
+                        provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                        displayOrder = currentEntry.items.size
+                    )
+                }
+
+                val updatedItems = currentEntry.items + newItem
+                val updatedEntry = currentEntry.copy(
+                    items = updatedItems,
+                    totalCalories = updatedItems.sumOf { it.caloriesBurned },
+                    totalDurationMinutes = updatedItems.sumOf { it.durationMinutes },
+                    updatedAt = System.currentTimeMillis()
+                )
+                
+                loggingRepository.updateExerciseEntry(updatedEntry)
+                _uiState.update { it.copy(exerciseEntry = updatedEntry) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    fun updateExerciseEntry(entry: ExerciseEntry) {
+        viewModelScope.launch {
+            try {
+                val dbEntry = loggingRepository.getExerciseEntryById(entry.id)
+                val dbItems = dbEntry?.items ?: emptyList()
+                val profile = profileRepository.getProfileOnce()
+                val userWeightKg = profile?.currentWeightKg ?: 70f
+                
+                // Parallel resolve for changed items
+                val finalItems = coroutineScope {
+                    entry.items.mapIndexed { index, item ->
+                        async {
+                            val dbItem = dbItems.getOrNull(index)
+                            if (dbItem == null || 
+                                dbItem.activityName != item.activityName || 
+                                dbItem.durationMinutes != item.durationMinutes) {
+                                
+                                try {
+                                    val response = backendApi.resolveExercise(
+                                        ResolveExerciseRequest(
+                                            activity = item.activityName,
+                                            durationMinutes = item.durationMinutes,
+                                            userWeightKg = userWeightKg
+                                        )
+                                    )
+                                    if (response.isSuccessful && response.body() != null) {
+                                        val body = response.body()!!
+                                        item.copy(
+                                            id = item.id, // Keep ID if existing
+                                            caloriesBurned = body.caloriesBurned ?: item.caloriesBurned,
+                                            metValue = body.metValue ?: item.metValue,
+                                            displayOrder = index
+                                        )
+                                    } else {
+                                        item.copy(displayOrder = index)
+                                    }
+                                } catch (e: Exception) {
+                                    item.copy(displayOrder = index)
+                                }
+                            } else {
+                                item
+                            }
+                        }
+                    }.awaitAll()
+                }
+
+                val reanalyzedEntry = entry.copy(
+                    items = finalItems,
+                    totalCalories = finalItems.sumOf { it.caloriesBurned },
+                    totalDurationMinutes = finalItems.sumOf { it.durationMinutes },
+                    updatedAt = System.currentTimeMillis()
+                )
+
+                loggingRepository.updateExerciseEntry(reanalyzedEntry)
+                _uiState.update { it.copy(exerciseEntry = reanalyzedEntry) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    fun deleteExerciseItem(item: ExerciseItem) {
+        viewModelScope.launch {
+            try {
+                val currentEntry = uiState.value.exerciseEntry ?: return@launch
+                val updatedItems = currentEntry.items.filter { it.id != item.id || (item.id == 0L && it !== item) }
+                
+                if (updatedItems.isEmpty()) {
+                    loggingRepository.deleteExerciseEntry(currentEntry.id)
+                    _uiState.update { it.copy(entryDeleted = true) }
+                } else {
+                    val updatedEntry = currentEntry.copy(
+                        items = updatedItems,
+                        totalCalories = updatedItems.sumOf { it.caloriesBurned },
+                        totalDurationMinutes = updatedItems.sumOf { it.durationMinutes },
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    loggingRepository.updateExerciseEntry(updatedEntry)
+                    _uiState.update { it.copy(exerciseEntry = updatedEntry) }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    fun deleteEntry() {
+        viewModelScope.launch {
+            try {
+                if (entryType == "food") {
+                    loggingRepository.deleteFoodEntry(entryId)
+                } else {
+                    loggingRepository.deleteExerciseEntry(entryId)
+                }
+                _uiState.update { it.copy(entryDeleted = true) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Common Actions
+    // ─────────────────────────────────────────────────────────────────────────────
 
     fun saveAsTemplate(name: String) {
         viewModelScope.launch {
@@ -265,11 +430,16 @@ class EntryDetailViewModel @Inject constructor(
                     }
                     uiState.value.exerciseEntry != null -> {
                         val entry = uiState.value.exerciseEntry!!
+                        // Updated to save list of items
                         val exerciseJson = json.encodeToString(
                             SavedExerciseDataJson(
-                                activityName = entry.activityName,
-                                durationMinutes = entry.durationMinutes,
-                                metValue = entry.metValue
+                                items = entry.items.map { 
+                                    SavedExerciseItemJson(
+                                        activityName = it.activityName,
+                                        durationMinutes = it.durationMinutes,
+                                        metValue = it.metValue
+                                    )
+                                }
                             )
                         )
 
@@ -278,7 +448,7 @@ class EntryDetailViewModel @Inject constructor(
                                 name = name,
                                 entryType = "exercise",
                                 entryDataJson = exerciseJson,
-                                totalCalories = entry.caloriesBurned,
+                                totalCalories = entry.totalCalories,
                                 useCount = 0,
                                 lastUsedAt = null,
                                 createdAt = now,
@@ -341,6 +511,11 @@ private data class SavedFoodItemJson(
 
 @kotlinx.serialization.Serializable
 private data class SavedExerciseDataJson(
+    val items: List<SavedExerciseItemJson>
+)
+
+@kotlinx.serialization.Serializable
+private data class SavedExerciseItemJson(
     val activityName: String,
     val durationMinutes: Int,
     val metValue: Float

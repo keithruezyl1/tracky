@@ -276,58 +276,147 @@ fun EditExerciseEntrySheet(
     onDismiss: () -> Unit,
     onSave: (ExerciseEntry) -> Unit
 ) {
-    var activityName by remember { mutableStateOf(entry.activityName) }
-    var durationMinutes by remember { mutableStateOf(entry.durationMinutes.toString()) }
-    var caloriesBurned by remember { mutableStateOf(entry.caloriesBurned.toString()) }
+    var editedItems by remember { mutableStateOf(entry.items.toMutableList()) }
+
+    fun sentenceCase(text: String): String {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return trimmed
+        val lower = trimmed.lowercase()
+        return lower.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
 
     TrackyBottomSheet(
         onDismissRequest = onDismiss,
         title = "Edit Exercise Entry"
     ) {
-        Column {
-            TrackyInput(
-                value = activityName,
-                onValueChange = { activityName = it },
-                label = "Activity",
-                placeholder = "Enter activity name"
-            )
+        Column(
+            modifier = Modifier.verticalScroll(rememberScrollState())
+        ) {
+            // Edit each item
+            editedItems.forEachIndexed { index, item ->
+                EditExerciseItemCard(
+                    item = item,
+                    onItemChanged = { updatedItem ->
+                        editedItems = editedItems.toMutableList().apply {
+                            this[index] = updatedItem
+                        }
+                    }
+                )
+                if (index < editedItems.size - 1) {
+                    Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
+                }
+            }
 
+            // Totals
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+            TrackyCard {
+                val totalCalories = editedItems.sumOf { it.caloriesBurned }
+                val totalDuration = editedItems.sumOf { it.durationMinutes }
 
-            TrackyNumberInput(
-                value = durationMinutes,
-                onValueChange = { durationMinutes = it },
-                label = "Duration",
-                suffix = "min",
-                allowDecimal = false
-            )
-
-            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-
-            TrackyNumberInput(
-                value = caloriesBurned,
-                onValueChange = { caloriesBurned = it },
-                label = "Calories Burned",
-                suffix = "kcal",
-                allowDecimal = false
-            )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TrackyBodyText(text = "Total Duration")
+                    TrackyBodyText(text = "$totalDuration min")
+                }
+                TrackyDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TrackyBodyText(text = "Total Calories Burned")
+                    TrackyBodyText(
+                        text = "$totalCalories kcal",
+                        color = TrackyTokens.Colors.Success
+                    )
+                }
+            }
 
             TrackySheetActions(
                 primaryText = "Save Changes",
                 onPrimaryClick = {
+                    val totalCalories = editedItems.sumOf { it.caloriesBurned }
+                    val totalDuration = editedItems.sumOf { it.durationMinutes }
+
+                    val normalizedItems = editedItems.map { 
+                        it.copy(activityName = sentenceCase(it.activityName)) 
+                    }
+
                     onSave(
                         entry.copy(
-                            activityName = activityName,
-                            durationMinutes = durationMinutes.toIntOrNull() ?: entry.durationMinutes,
-                            caloriesBurned = caloriesBurned.toIntOrNull() ?: entry.caloriesBurned,
+                            items = normalizedItems,
+                            totalCalories = totalCalories,
+                            totalDurationMinutes = totalDuration,
                             updatedAt = System.currentTimeMillis()
                         )
                     )
                 },
-                primaryEnabled = activityName.isNotBlank() &&
-                        durationMinutes.toIntOrNull() != null &&
-                        caloriesBurned.toIntOrNull() != null
+                primaryEnabled = editedItems.isNotEmpty()
             )
         }
     }
 }
+
+@Composable
+private fun EditExerciseItemCard(
+    item: com.tracky.app.domain.model.ExerciseItem,
+    onItemChanged: (com.tracky.app.domain.model.ExerciseItem) -> Unit
+) {
+    var activityName by remember { mutableStateOf(item.activityName) }
+    var durationMinutes by remember { mutableStateOf(item.durationMinutes.toString()) }
+    var caloriesBurned by remember { mutableStateOf(item.caloriesBurned.toString()) }
+
+    fun emitChange(
+        newActivity: String = activityName,
+        newDuration: Int = durationMinutes.toIntOrNull() ?: item.durationMinutes,
+        newCalories: Int = caloriesBurned.toIntOrNull() ?: item.caloriesBurned
+    ) {
+        onItemChanged(
+            item.copy(
+                activityName = newActivity,
+                durationMinutes = newDuration,
+                caloriesBurned = newCalories
+            )
+        )
+    }
+
+    TrackyCard {
+        TrackyInput(
+            value = activityName,
+            onValueChange = {
+                activityName = it
+                emitChange(newActivity = it)
+            },
+            label = "Activity Name",
+            placeholder = "Enter activity name"
+        )
+
+        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
+
+        TrackyNumberInput(
+            value = durationMinutes,
+            onValueChange = {
+                durationMinutes = it
+                it.toIntOrNull()?.let { d -> emitChange(newDuration = d) }
+            },
+            label = "Duration",
+            suffix = "min",
+            allowDecimal = false
+        )
+
+        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
+
+        TrackyNumberInput(
+            value = caloriesBurned,
+            onValueChange = {
+                caloriesBurned = it
+                it.toIntOrNull()?.let { c -> emitChange(newCalories = c) }
+            },
+            label = "Calories Burned",
+            suffix = "kcal",
+            allowDecimal = false
+        )
+    }
+}
+

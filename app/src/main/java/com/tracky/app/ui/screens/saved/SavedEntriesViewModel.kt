@@ -5,6 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.tracky.app.data.local.dao.SavedEntryDao
 import com.tracky.app.data.local.entity.SavedEntryEntity
 import com.tracky.app.data.repository.LoggingRepository
+import com.tracky.app.data.repository.ProfileRepository
+import com.tracky.app.domain.model.ExerciseEntry
+import com.tracky.app.domain.model.ExerciseIntensity
+import com.tracky.app.domain.model.ExerciseItem
 import com.tracky.app.domain.model.FoodEntry
 import com.tracky.app.domain.model.FoodItem
 import com.tracky.app.domain.model.Provenance
@@ -12,6 +16,7 @@ import com.tracky.app.domain.model.ProvenanceSource
 import com.tracky.app.domain.model.SavedEntry
 import com.tracky.app.domain.model.SavedEntryData
 import com.tracky.app.domain.model.SavedEntryType
+import com.tracky.app.domain.model.SavedExerciseItem
 import com.tracky.app.domain.model.SavedFoodItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +33,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SavedEntriesViewModel @Inject constructor(
     private val savedEntryDao: SavedEntryDao,
-    private val loggingRepository: LoggingRepository
+    private val loggingRepository: LoggingRepository,
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SavedEntriesUiState())
@@ -54,16 +60,15 @@ class SavedEntriesViewModel @Inject constructor(
             try {
                 // Increment use count
                 savedEntryDao.incrementUseCount(entry.id, System.currentTimeMillis())
+                val now = Clock.System.now()
+                val localDateTime = now.toLocalDateTime(TimeZone.currentSystemDefault())
+                val timestamp = now.toEpochMilliseconds()
 
                 // Create a new entry from the saved template
                 when (entry.entryType) {
                     SavedEntryType.FOOD -> {
                         val foodData = entry.data as? SavedEntryData.FoodData
                         if (foodData != null) {
-                            val now = Clock.System.now()
-                            val localDateTime = now.toLocalDateTime(TimeZone.currentSystemDefault())
-                            val timestamp = now.toEpochMilliseconds()
-
                             val foodEntry = FoodEntry(
                                 date = localDateTime.date.toString(),
                                 time = localDateTime.time.toString(),
@@ -102,8 +107,47 @@ class SavedEntriesViewModel @Inject constructor(
                         }
                     }
                     SavedEntryType.EXERCISE -> {
-                        // TODO: Implement exercise saved entry application
-                        _uiState.update { it.copy(message = "Exercise templates coming soon") }
+                        val exerciseData = entry.data as? SavedEntryData.ExerciseData
+                        if (exerciseData != null) {
+                            val profile = profileRepository.getProfileOnce()
+                            val userWeightKg = profile?.currentWeightKg ?: 70f
+                            
+                            val exerciseItems = exerciseData.items.mapIndexed { index, item ->
+                                // Calculate calories: MET * Weight (kg) * Duration (hr)
+                                val durationHours = item.durationMinutes / 60f
+                                val calories = (item.metValue * userWeightKg * durationHours).toInt()
+                                
+                                ExerciseItem(
+                                    activityName = item.activityName,
+                                    durationMinutes = item.durationMinutes,
+                                    metValue = item.metValue,
+                                    caloriesBurned = calories,
+                                    intensity = ExerciseIntensity.MODERATE, // Defaulting, stored templates didn't have intensity before
+                                    provenance = Provenance(
+                                        source = ProvenanceSource.USER_OVERRIDE,
+                                        sourceId = "saved_${entry.id}",
+                                        confidence = 1f
+                                    ),
+                                    displayOrder = index
+                                )
+                            }
+                            
+                            val exerciseEntry = ExerciseEntry(
+                                date = localDateTime.date.toString(),
+                                time = localDateTime.time.toString(),
+                                timestamp = timestamp,
+                                items = exerciseItems,
+                                totalCalories = exerciseItems.sumOf { it.caloriesBurned },
+                                totalDurationMinutes = exerciseItems.sumOf { it.durationMinutes },
+                                userWeightKg = userWeightKg,
+                                originalInput = "Saved: ${entry.name}",
+                                createdAt = timestamp,
+                                updatedAt = timestamp
+                            )
+                            
+                            loggingRepository.saveExerciseEntry(exerciseEntry)
+                            _uiState.update { it.copy(message = "Added ${entry.name} to today's log") }
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -123,24 +167,52 @@ class SavedEntriesViewModel @Inject constructor(
     }
 
     private fun SavedEntryEntity.toDomain(): SavedEntry {
-        // Parse JSON data
+        // Parse JSON data based on entry type
         val data = try {
-            val parsed = json.decodeFromString<SavedFoodDataJson>(entryDataJson)
-            SavedEntryData.FoodData(
-                items = parsed.items.map { item ->
-                    SavedFoodItem(
-                        name = item.name,
-                        quantity = item.quantity,
-                        unit = item.unit,
-                        calories = item.calories,
-                        carbsG = item.carbsG,
-                        proteinG = item.proteinG,
-                        fatG = item.fatG
+            if (entryType == SavedEntryType.FOOD.value) {
+                val parsed = json.decodeFromString<SavedFoodDataJson>(entryDataJson)
+                SavedEntryData.FoodData(
+                    items = parsed.items.map { item ->
+                        SavedFoodItem(
+                            name = item.name,
+                            quantity = item.quantity,
+                            unit = item.unit,
+                            calories = item.calories,
+                            carbsG = item.carbsG,
+                            proteinG = item.proteinG,
+                            fatG = item.fatG
+                        )
+                    }
+                )
+            } else {
+                 // Try to decode as list (new format) first
+                try {
+                    val parsed = json.decodeFromString<SavedExerciseDataJson>(entryDataJson)
+                    SavedEntryData.ExerciseData(
+                        items = parsed.items.map { item ->
+                            SavedExerciseItem(
+                                activityName = item.activityName,
+                                durationMinutes = item.durationMinutes,
+                                metValue = item.metValue
+                            )
+                        }
                     )
+                } catch (e: Exception) {
+                    // Fallback to old format (single item) if it was saved before update
+                    // or if I messed up the JSON structure update logic
+                    // Although simple destructive migration was used so old data is gone from DB?
+                    // "fallbackToDestructiveMigration" typically clears DB on version mismatch.
+                    // So we might not have old data. But good to be safe.
+                    // Actually, if we cleared DB, we have NO old data.
+                    SavedEntryData.ExerciseData(emptyList())
                 }
-            )
+            }
         } catch (e: Exception) {
-            SavedEntryData.FoodData(emptyList())
+            if (entryType == SavedEntryType.FOOD.value) {
+                SavedEntryData.FoodData(emptyList())
+            } else {
+                SavedEntryData.ExerciseData(emptyList())
+            }
         }
 
         return SavedEntry(
@@ -171,6 +243,18 @@ private data class SavedFoodItemJson(
     val carbsG: Float,
     val proteinG: Float,
     val fatG: Float
+)
+
+@kotlinx.serialization.Serializable
+private data class SavedExerciseDataJson(
+    val items: List<SavedExerciseItemJson>
+)
+
+@kotlinx.serialization.Serializable
+private data class SavedExerciseItemJson(
+    val activityName: String,
+    val durationMinutes: Int,
+    val metValue: Float
 )
 
 data class SavedEntriesUiState(

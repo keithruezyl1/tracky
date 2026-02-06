@@ -3,6 +3,7 @@ package com.tracky.app.data.mapper
 import com.tracky.app.data.local.entity.ChatMessageEntity
 import com.tracky.app.data.local.entity.DailyGoalEntity
 import com.tracky.app.data.local.entity.ExerciseEntryEntity
+import com.tracky.app.data.local.entity.ExerciseItemEntity
 import com.tracky.app.data.local.entity.FoodEntryEntity
 import com.tracky.app.data.local.entity.FoodItemEntity
 import com.tracky.app.data.local.entity.UserProfileEntity
@@ -13,6 +14,7 @@ import com.tracky.app.domain.model.DailyGoal
 import com.tracky.app.domain.model.DraftStatus
 import com.tracky.app.domain.model.ExerciseEntry
 import com.tracky.app.domain.model.ExerciseIntensity
+import com.tracky.app.domain.model.ExerciseItem
 import com.tracky.app.domain.model.FoodEntry
 import com.tracky.app.domain.model.FoodItem
 import com.tracky.app.domain.model.MessageRole
@@ -155,23 +157,16 @@ fun FoodItem.toEntity(foodEntryId: Long): FoodItemEntity = FoodItemEntity(
 // ExerciseEntry Mappers
 // ─────────────────────────────────────────────────────────────────────────────
 
-fun ExerciseEntryEntity.toDomain(): ExerciseEntry = ExerciseEntry(
+fun ExerciseEntryEntity.toDomain(items: List<ExerciseItemEntity>): ExerciseEntry = ExerciseEntry(
     id = id,
     date = date,
     time = time,
     timestamp = timestamp,
-    activityName = activityName,
-    durationMinutes = durationMinutes,
-    metValue = metValue,
+    totalCalories = totalCalories,
+    totalDurationMinutes = totalDurationMinutes,
+    items = items.map { it.toDomain() },
     userWeightKg = userWeightKg,
-    caloriesBurned = caloriesBurned,
-    intensity = ExerciseIntensity.fromValue(intensity),
     originalInput = originalInput,
-    provenance = Provenance(
-        source = ProvenanceSource.fromValue(source),
-        sourceId = sourceId,
-        confidence = confidence
-    ),
     createdAt = createdAt,
     updatedAt = updatedAt
 )
@@ -181,18 +176,40 @@ fun ExerciseEntry.toEntity(): ExerciseEntryEntity = ExerciseEntryEntity(
     date = date,
     time = time,
     timestamp = timestamp,
+    totalCalories = totalCalories,
+    totalDurationMinutes = totalDurationMinutes,
+    userWeightKg = userWeightKg,
+    originalInput = originalInput,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
+
+fun ExerciseItemEntity.toDomain(): ExerciseItem = ExerciseItem(
+    id = id,
     activityName = activityName,
     durationMinutes = durationMinutes,
     metValue = metValue,
-    userWeightKg = userWeightKg,
+    caloriesBurned = caloriesBurned,
+    intensity = ExerciseIntensity.fromValue(intensity),
+    provenance = Provenance(
+        source = ProvenanceSource.fromValue(source),
+        sourceId = null, // Exercise items don't have IDs in this schema yet
+        confidence = confidence
+    ),
+    displayOrder = displayOrder
+)
+
+fun ExerciseItem.toEntity(entryId: Long): ExerciseItemEntity = ExerciseItemEntity(
+    id = id,
+    entryId = entryId,
+    activityName = activityName,
+    durationMinutes = durationMinutes,
+    metValue = metValue,
     caloriesBurned = caloriesBurned,
     intensity = intensity?.value,
-    originalInput = originalInput,
     source = provenance.source.value,
-    sourceId = provenance.sourceId,
     confidence = provenance.confidence,
-    createdAt = createdAt,
-    updatedAt = updatedAt
+    displayOrder = displayOrder
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,7 +248,6 @@ fun ChatMessageEntity.toDomain(): ChatMessage = ChatMessage(
     role = MessageRole.fromValue(role),
     content = content,
     imagePath = imagePath,
-    // Draft data is not yet serialized/deserialized; keep it null for now.
     draftData = null,
     draftStatus = DraftStatus.fromValue(draftStatus),
     linkedFoodEntryId = linkedFoodEntryId,
@@ -247,11 +263,9 @@ fun ChatMessage.toEntity(): ChatMessageEntity = ChatMessageEntity(
     role = role.value,
     content = content,
     imagePath = imagePath,
-    // Draft data is not yet serialized/deserialized; keep it null for now.
     entryDataJson = null,
     draftStatus = draftStatus?.value,
     linkedFoodEntryId = linkedFoodEntryId,
     linkedExerciseEntryId = linkedExerciseEntryId,
     createdAt = createdAt
 )
-

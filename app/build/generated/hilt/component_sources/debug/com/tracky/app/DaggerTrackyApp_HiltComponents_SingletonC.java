@@ -443,45 +443,45 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
-
       static String com_tracky_app_ui_screens_goals_DailyGoalsViewModel = "com.tracky.app.ui.screens.goals.DailyGoalsViewModel";
-
-      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
-
-      static String com_tracky_app_ui_screens_settings_SettingsViewModel = "com.tracky.app.ui.screens.settings.SettingsViewModel";
-
-      static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
 
       static String com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel = "com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel";
 
+      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
+
       static String com_tracky_app_ui_screens_onboarding_OnboardingViewModel = "com.tracky.app.ui.screens.onboarding.OnboardingViewModel";
+
+      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
 
       static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
 
-      @KeepFieldType
-      SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
+      static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
+
+      static String com_tracky_app_ui_screens_settings_SettingsViewModel = "com.tracky.app.ui.screens.settings.SettingsViewModel";
 
       @KeepFieldType
       DailyGoalsViewModel com_tracky_app_ui_screens_goals_DailyGoalsViewModel2;
 
       @KeepFieldType
-      HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
-
-      @KeepFieldType
-      SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
-
-      @KeepFieldType
-      WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
-
-      @KeepFieldType
       EntryDetailViewModel com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel2;
+
+      @KeepFieldType
+      HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
 
       @KeepFieldType
       OnboardingViewModel com_tracky_app_ui_screens_onboarding_OnboardingViewModel2;
 
       @KeepFieldType
+      SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
+
+      @KeepFieldType
       SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
+
+      @KeepFieldType
+      WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
+
+      @KeepFieldType
+      SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
     }
   }
 
@@ -545,45 +545,45 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel = "com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel";
-
-      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
-
-      static String com_tracky_app_ui_screens_settings_SettingsViewModel = "com.tracky.app.ui.screens.settings.SettingsViewModel";
-
-      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
-
-      static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
-
-      static String com_tracky_app_ui_screens_goals_DailyGoalsViewModel = "com.tracky.app.ui.screens.goals.DailyGoalsViewModel";
-
       static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
 
       static String com_tracky_app_ui_screens_onboarding_OnboardingViewModel = "com.tracky.app.ui.screens.onboarding.OnboardingViewModel";
 
-      @KeepFieldType
-      EntryDetailViewModel com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel2;
+      static String com_tracky_app_ui_screens_goals_DailyGoalsViewModel = "com.tracky.app.ui.screens.goals.DailyGoalsViewModel";
 
-      @KeepFieldType
-      HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
+      static String com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel = "com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel";
 
-      @KeepFieldType
-      SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
+      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
 
-      @KeepFieldType
-      SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
+      static String com_tracky_app_ui_screens_settings_SettingsViewModel = "com.tracky.app.ui.screens.settings.SettingsViewModel";
 
-      @KeepFieldType
-      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
+      static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
 
-      @KeepFieldType
-      DailyGoalsViewModel com_tracky_app_ui_screens_goals_DailyGoalsViewModel2;
+      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
 
       @KeepFieldType
       WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
 
       @KeepFieldType
       OnboardingViewModel com_tracky_app_ui_screens_onboarding_OnboardingViewModel2;
+
+      @KeepFieldType
+      DailyGoalsViewModel com_tracky_app_ui_screens_goals_DailyGoalsViewModel2;
+
+      @KeepFieldType
+      EntryDetailViewModel com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel2;
+
+      @KeepFieldType
+      SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
+
+      @KeepFieldType
+      SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
+
+      @KeepFieldType
+      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
+
+      @KeepFieldType
+      HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {
@@ -620,7 +620,7 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
           return (T) new OnboardingViewModel(singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.goalRepositoryProvider.get(), singletonCImpl.weightRepositoryProvider.get());
 
           case 4: // com.tracky.app.ui.screens.saved.SavedEntriesViewModel 
-          return (T) new SavedEntriesViewModel(singletonCImpl.savedEntryDao(), singletonCImpl.loggingRepositoryProvider.get());
+          return (T) new SavedEntriesViewModel(singletonCImpl.savedEntryDao(), singletonCImpl.loggingRepositoryProvider.get(), singletonCImpl.profileRepositoryProvider.get());
 
           case 5: // com.tracky.app.ui.screens.settings.SettingsViewModel 
           return (T) new SettingsViewModel(singletonCImpl.profileRepositoryProvider.get(), singletonCImpl.userPreferencesDataStoreProvider.get(), singletonCImpl.provideDatabaseProvider.get());

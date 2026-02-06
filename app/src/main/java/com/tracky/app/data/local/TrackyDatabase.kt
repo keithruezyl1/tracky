@@ -17,6 +17,7 @@ import com.tracky.app.data.local.dao.WeightEntryDao
 import com.tracky.app.data.local.entity.ChatMessageEntity
 import com.tracky.app.data.local.entity.DailyGoalEntity
 import com.tracky.app.data.local.entity.ExerciseEntryEntity
+import com.tracky.app.data.local.entity.ExerciseItemEntity
 import com.tracky.app.data.local.entity.FoodEntryEntity
 import com.tracky.app.data.local.entity.FoodItemEntity
 import com.tracky.app.data.local.entity.FoodsDatasetEntity
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
         FoodEntryEntity::class,
         FoodItemEntity::class,
         ExerciseEntryEntity::class,
+        ExerciseItemEntity::class,
         WeightEntryEntity::class,
         SavedEntryEntity::class,
         ChatMessageEntity::class,
@@ -43,7 +45,7 @@ import kotlinx.coroutines.launch
         FoodsFtsEntity::class,
         SynonymEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class TrackyDatabase : RoomDatabase() {
@@ -71,6 +73,7 @@ abstract class TrackyDatabase : RoomDatabase() {
                 db.execSQL("DELETE FROM food_entries")
                 db.execSQL("DELETE FROM food_items")
                 db.execSQL("DELETE FROM exercise_entries")
+                db.execSQL("DELETE FROM exercise_items")
                 db.execSQL("DELETE FROM weight_entries")
                 db.execSQL("DELETE FROM saved_entries")
                 db.execSQL("DELETE FROM chat_messages")

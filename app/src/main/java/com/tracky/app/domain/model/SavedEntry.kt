@@ -38,9 +38,7 @@ sealed class SavedEntryData {
     ) : SavedEntryData()
 
     data class ExerciseData(
-        val activityName: String,
-        val durationMinutes: Int,
-        val metValue: Float
+        val items: List<SavedExerciseItem>
     ) : SavedEntryData()
 }
 
@@ -55,4 +53,13 @@ data class SavedFoodItem(
     val carbsG: Float,
     val proteinG: Float,
     val fatG: Float
+)
+
+/**
+ * Saved exercise item for templates
+ */
+data class SavedExerciseItem(
+    val activityName: String,
+    val durationMinutes: Int,
+    val metValue: Float
 )

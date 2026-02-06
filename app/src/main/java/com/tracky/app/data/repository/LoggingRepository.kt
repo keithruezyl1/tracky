@@ -84,7 +84,7 @@ class LoggingRepository @Inject constructor(
      */
     fun getExerciseEntriesForDate(date: String): Flow<List<ExerciseEntry>> {
         return exerciseEntryDao.getEntriesForDate(date).map { entries ->
-            entries.map { it.toDomain() }
+            entries.map { it.entry.toDomain(it.items) }
         }
     }
 
@@ -92,14 +92,21 @@ class LoggingRepository @Inject constructor(
      * Get single exercise entry by ID
      */
     suspend fun getExerciseEntryById(id: Long): ExerciseEntry? {
-        return exerciseEntryDao.getEntryById(id)?.toDomain()
+        return exerciseEntryDao.getEntryById(id)?.let {
+            it.entry.toDomain(it.items)
+        }
     }
 
     /**
      * Save exercise entry
      */
     suspend fun saveExerciseEntry(entry: ExerciseEntry): Long {
-        return exerciseEntryDao.insert(entry.toEntity())
+        val entryId = exerciseEntryDao.insert(entry.toEntity())
+        val itemEntities = entry.items.mapIndexed { index, item ->
+            item.toEntity(entryId).copy(displayOrder = index)
+        }
+        exerciseEntryDao.insertItems(itemEntities)
+        return entryId
     }
 
     /**
@@ -107,6 +114,13 @@ class LoggingRepository @Inject constructor(
      */
     suspend fun updateExerciseEntry(entry: ExerciseEntry) {
         exerciseEntryDao.update(entry.toEntity())
+        
+        // Update items (replace-all strategy for simplicity)
+        exerciseEntryDao.deleteItemsForEntry(entry.id)
+        val itemEntities = entry.items.mapIndexed { index, item ->
+            item.toEntity(entry.id).copy(displayOrder = index)
+        }
+        exerciseEntryDao.insertItems(itemEntities)
     }
 
     /**
