@@ -133,25 +133,29 @@ fun FoodItemEntity.toDomain(): FoodItem = FoodItem(
         sourceId = sourceId,
         confidence = confidence
     ),
-    displayOrder = displayOrder
+    displayOrder = displayOrder,
+    canonicalKey = canonicalKey
 )
 
-fun FoodItem.toEntity(foodEntryId: Long): FoodItemEntity = FoodItemEntity(
-    id = id,
-    foodEntryId = foodEntryId,
-    name = name,
-    matchedName = matchedName,
-    quantity = quantity,
-    unit = unit,
-    calories = calories,
-    carbsG = carbsG,
-    proteinG = proteinG,
-    fatG = fatG,
-    source = provenance.source.value,
-    sourceId = provenance.sourceId,
-    confidence = provenance.confidence,
-    displayOrder = displayOrder
-)
+fun FoodItem.toEntity(foodEntryId: Long): FoodItemEntity {
+    return FoodItemEntity(
+        id = id,
+        foodEntryId = foodEntryId,
+        name = name,
+        matchedName = matchedName,
+        quantity = quantity,
+        unit = unit,
+        calories = calories,
+        carbsG = carbsG,
+        proteinG = proteinG,
+        fatG = fatG,
+        source = provenance.source.value,
+        sourceId = provenance.sourceId,
+        confidence = provenance.confidence,
+        displayOrder = displayOrder,
+        canonicalKey = canonicalKey
+    )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ExerciseEntry Mappers

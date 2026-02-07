@@ -36,8 +36,38 @@ data class FoodItem(
     val proteinG: Float,
     val fatG: Float,
     val provenance: Provenance,
-    val displayOrder: Int
-)
+    /**
+     * Display order for this item
+     */
+    val displayOrder: Int,
+    
+    /**
+     * Canonical key for exact reuse (e.g., "rice_white_cooked")
+     */
+    val canonicalKey: String? = null
+) {
+    /**
+     * Check if item is valid for history reuse.
+     * Rules:
+     * 1. Macros must be valid (non-negative)
+     * 2. Calories > 0 (unless explicit override)
+     * 3. Source is not UNRESOLVED
+     */
+    fun isValidForReuse(minConfidence: Float = 0.8f): Boolean {
+        // Rule 1: Source validity
+        if (provenance.source == ProvenanceSource.UNRESOLVED) return false
+        
+        // Rule 2: User Override is always valid (user truth)
+        if (provenance.source == ProvenanceSource.USER_OVERRIDE) return true
+        
+        // Rule 3: Quality check for auto-generated items
+        if (calories <= 0f) return false
+        if (carbsG < 0f || proteinG < 0f || fatG < 0f) return false
+        
+        // Rule 4: Confidence check
+        return provenance.confidence >= minConfidence
+    }
+}
 
 /**
  * Provenance tracking for nutrition data

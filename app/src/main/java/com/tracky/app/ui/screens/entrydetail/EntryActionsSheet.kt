@@ -46,7 +46,7 @@ import com.tracky.app.ui.theme.TrackyTokens
 fun EntryActionsSheet(
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
-    onAdjust: () -> Unit,
+
     onChangeDateTime: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -64,14 +64,7 @@ fun EntryActionsSheet(
                 }
             )
 
-            ActionItem(
-                icon = Icons.Outlined.Tune,
-                label = "Adjust Calories/Macros",
-                onClick = {
-                    onDismiss()
-                    onAdjust()
-                }
-            )
+
 
             ActionItem(
                 icon = Icons.Outlined.CalendarToday,

@@ -45,7 +45,7 @@ import kotlinx.coroutines.launch
         FoodsFtsEntity::class,
         SynonymEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class TrackyDatabase : RoomDatabase() {
@@ -99,6 +99,7 @@ abstract class TrackyDatabase : RoomDatabase() {
                     DATABASE_NAME
                 )
                     .addCallback(DatabaseCallback())
+                    .addMigrations(MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
@@ -442,4 +443,10 @@ private suspend fun populateInitialFoodsDataset(dao: FoodsDatasetDao) {
     )
     
     dao.insertSynonyms(synonyms)
+}
+
+private val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE food_items ADD COLUMN canonicalKey TEXT")
+    }
 }

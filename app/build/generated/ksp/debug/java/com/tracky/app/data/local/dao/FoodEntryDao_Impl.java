@@ -97,7 +97,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR ABORT INTO `food_items` (`id`,`foodEntryId`,`name`,`matchedName`,`quantity`,`unit`,`calories`,`carbsG`,`proteinG`,`fatG`,`source`,`sourceId`,`confidence`,`displayOrder`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR ABORT INTO `food_items` (`id`,`foodEntryId`,`name`,`matchedName`,`quantity`,`unit`,`calories`,`carbsG`,`proteinG`,`fatG`,`source`,`sourceId`,`confidence`,`displayOrder`,`canonicalKey`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -125,6 +125,11 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
         }
         statement.bindDouble(13, entity.getConfidence());
         statement.bindLong(14, entity.getDisplayOrder());
+        if (entity.getCanonicalKey() == null) {
+          statement.bindNull(15);
+        } else {
+          statement.bindString(15, entity.getCanonicalKey());
+        }
       }
     };
     this.__deletionAdapterOfFoodEntryEntity = new EntityDeletionOrUpdateAdapter<FoodEntryEntity>(__db) {
@@ -195,7 +200,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `food_items` SET `id` = ?,`foodEntryId` = ?,`name` = ?,`matchedName` = ?,`quantity` = ?,`unit` = ?,`calories` = ?,`carbsG` = ?,`proteinG` = ?,`fatG` = ?,`source` = ?,`sourceId` = ?,`confidence` = ?,`displayOrder` = ? WHERE `id` = ?";
+        return "UPDATE OR ABORT `food_items` SET `id` = ?,`foodEntryId` = ?,`name` = ?,`matchedName` = ?,`quantity` = ?,`unit` = ?,`calories` = ?,`carbsG` = ?,`proteinG` = ?,`fatG` = ?,`source` = ?,`sourceId` = ?,`confidence` = ?,`displayOrder` = ?,`canonicalKey` = ? WHERE `id` = ?";
       }
 
       @Override
@@ -223,7 +228,12 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
         }
         statement.bindDouble(13, entity.getConfidence());
         statement.bindLong(14, entity.getDisplayOrder());
-        statement.bindLong(15, entity.getId());
+        if (entity.getCanonicalKey() == null) {
+          statement.bindNull(15);
+        } else {
+          statement.bindString(15, entity.getCanonicalKey());
+        }
+        statement.bindLong(16, entity.getId());
       }
     };
     this.__preparedStmtOfDeleteById = new SharedSQLiteStatement(__db) {
@@ -987,6 +997,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfSourceId = CursorUtil.getColumnIndexOrThrow(_cursor, "sourceId");
           final int _cursorIndexOfConfidence = CursorUtil.getColumnIndexOrThrow(_cursor, "confidence");
           final int _cursorIndexOfDisplayOrder = CursorUtil.getColumnIndexOrThrow(_cursor, "displayOrder");
+          final int _cursorIndexOfCanonicalKey = CursorUtil.getColumnIndexOrThrow(_cursor, "canonicalKey");
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1026,7 +1037,13 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             _tmpConfidence = _cursor.getFloat(_cursorIndexOfConfidence);
             final int _tmpDisplayOrder;
             _tmpDisplayOrder = _cursor.getInt(_cursorIndexOfDisplayOrder);
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder);
+            final String _tmpCanonicalKey;
+            if (_cursor.isNull(_cursorIndexOfCanonicalKey)) {
+              _tmpCanonicalKey = null;
+            } else {
+              _tmpCanonicalKey = _cursor.getString(_cursorIndexOfCanonicalKey);
+            }
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey);
             _result.add(_item);
           }
           return _result;
@@ -1070,6 +1087,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfSourceId = CursorUtil.getColumnIndexOrThrow(_cursor, "sourceId");
           final int _cursorIndexOfConfidence = CursorUtil.getColumnIndexOrThrow(_cursor, "confidence");
           final int _cursorIndexOfDisplayOrder = CursorUtil.getColumnIndexOrThrow(_cursor, "displayOrder");
+          final int _cursorIndexOfCanonicalKey = CursorUtil.getColumnIndexOrThrow(_cursor, "canonicalKey");
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1109,7 +1127,13 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             _tmpConfidence = _cursor.getFloat(_cursorIndexOfConfidence);
             final int _tmpDisplayOrder;
             _tmpDisplayOrder = _cursor.getInt(_cursorIndexOfDisplayOrder);
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder);
+            final String _tmpCanonicalKey;
+            if (_cursor.isNull(_cursorIndexOfCanonicalKey)) {
+              _tmpCanonicalKey = null;
+            } else {
+              _tmpCanonicalKey = _cursor.getString(_cursorIndexOfCanonicalKey);
+            }
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey);
             _result.add(_item);
           }
           return _result;
@@ -1127,7 +1151,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
     final String _sql = "\n"
             + "        SELECT DISTINCT \n"
             + "            id, foodEntryId, name, matchedName, quantity, unit, \n"
-            + "            calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder\n"
+            + "            calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder, canonicalKey\n"
             + "        FROM food_items\n"
             + "        WHERE (name LIKE '%' || ? || '%' OR matchedName LIKE '%' || ? || '%')\n"
             + "          AND source != 'unresolved'\n"
@@ -1162,6 +1186,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfSourceId = 11;
           final int _cursorIndexOfConfidence = 12;
           final int _cursorIndexOfDisplayOrder = 13;
+          final int _cursorIndexOfCanonicalKey = 14;
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1201,7 +1226,13 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             _tmpConfidence = _cursor.getFloat(_cursorIndexOfConfidence);
             final int _tmpDisplayOrder;
             _tmpDisplayOrder = _cursor.getInt(_cursorIndexOfDisplayOrder);
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder);
+            final String _tmpCanonicalKey;
+            if (_cursor.isNull(_cursorIndexOfCanonicalKey)) {
+              _tmpCanonicalKey = null;
+            } else {
+              _tmpCanonicalKey = _cursor.getString(_cursorIndexOfCanonicalKey);
+            }
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey);
             _result.add(_item);
           }
           return _result;

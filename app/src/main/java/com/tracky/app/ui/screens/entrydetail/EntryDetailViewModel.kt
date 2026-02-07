@@ -41,16 +41,17 @@ class EntryDetailViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val weightRepository: com.tracky.app.data.repository.WeightRepository,
     private val soundManager: com.tracky.app.ui.sound.SoundManager,
-    private val hapticManager: com.tracky.app.ui.haptics.HapticManager
+    private val hapticManager: com.tracky.app.ui.haptics.HapticManager,
+    private val canonicalKeyGenerator: com.tracky.app.domain.resolver.CanonicalKeyGenerator
 ) : ViewModel() {
 
-    private val json = Json { encodeDefaults = true }
-
-    private val entryId: Long = savedStateHandle["entryId"] ?: 0L
-    private val entryType: String = savedStateHandle["entryType"] ?: "food"
+    private val entryId: Long = savedStateHandle.get<Long>("entryId") ?: -1L
+    private val entryType: String = savedStateHandle.get<String>("entryType") ?: "food"
 
     private val _uiState = MutableStateFlow(EntryDetailUiState())
     val uiState: StateFlow<EntryDetailUiState> = _uiState.asStateFlow()
+
+    private val json = Json { ignoreUnknownKeys = true }
 
     init {
         loadEntry()
@@ -59,98 +60,22 @@ class EntryDetailViewModel @Inject constructor(
     private fun loadEntry() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-
             try {
                 if (entryType == "food") {
                     val entry = loggingRepository.getFoodEntryById(entryId)
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            foodEntry = entry
-                        )
-                    }
+                    _uiState.update { it.copy(foodEntry = entry, isLoading = false) }
                 } else {
                     val entry = loggingRepository.getExerciseEntryById(entryId)
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            exerciseEntry = entry
-                        )
-                    }
+                    _uiState.update { it.copy(exerciseEntry = entry, isLoading = false) }
                 }
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message
-                    )
-                }
+                _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // Food Entry Actions
-    // ─────────────────────────────────────────────────────────────────────────────
-
-    // Helper to get current weight dynamically
     private suspend fun getCurrentWeight(): Float {
-        // Priority 1: Latest weight entry from tracker
-        val latestWeight = weightRepository.getLatestEntryOnce()
-        if (latestWeight != null && latestWeight.weightKg > 0) {
-            return latestWeight.weightKg
-        }
-        
-        // Priority 2: Profile weight
-        val profile = profileRepository.getProfileOnce()
-        if (profile != null && profile.currentWeightKg > 0) {
-            return profile.currentWeightKg
-        }
-        
-        // No valid weight found
-        return 0f
-    }
-
-    fun addFoodItem(name: String, quantity: Float, unit: String) {
-        viewModelScope.launch {
-            try {
-                val currentEntry = _uiState.value.foodEntry ?: return@launch
-                
-                // Resolve the new item
-                val result = foodsRepository.resolveFood(name, quantity, unit)
-                val newItem = when (result) {
-                    is ResolvedFoodResult.Success -> result.foodItem.copy(displayOrder = currentEntry.items.size)
-                    else -> FoodItem(
-                        name = name,
-                        matchedName = null,
-                        quantity = quantity,
-                        unit = unit,
-                        calories = 0f,
-                        carbsG = 0f,
-                        proteinG = 0f,
-                        fatG = 0f,
-                        provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
-                        displayOrder = currentEntry.items.size
-                    )
-                }
-                
-                // Add to list and update entry
-                val updatedItems = currentEntry.items + newItem
-                val updatedEntry = currentEntry.copy(
-                    items = updatedItems,
-                    totalCalories = updatedItems.map { it.calories }.sum(),
-                    totalCarbsG = updatedItems.sumOf { it.carbsG.toDouble() }.toFloat(),
-                    totalProteinG = updatedItems.sumOf { it.proteinG.toDouble() }.toFloat(),
-                    totalFatG = updatedItems.sumOf { it.fatG.toDouble() }.toFloat(),
-                    updatedAt = System.currentTimeMillis()
-                )
-                
-                loggingRepository.updateFoodEntry(updatedEntry)
-                _uiState.update { it.copy(foodEntry = updatedEntry) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
-            }
-        }
+        return profileRepository.getProfileOnce()?.currentWeightKg ?: 70f
     }
 
     fun updateFoodEntry(entry: FoodEntry) {
@@ -160,14 +85,52 @@ class EntryDetailViewModel @Inject constructor(
                 // we should preserve their changes as-is instead of re-resolving.
                 // Re-resolution is only for AI analysis updates, not manual edits.
                 
+                val originalEntry = loggingRepository.getFoodEntryById(entry.id)
+                val originalItems = originalEntry?.items ?: emptyList()
+
+                val updatedItems = entry.items.map { item ->
+                    val originalItem = originalItems.find { it.id == item.id }
+                    
+                    // Check if critical fields have changed
+                    val hasChanged = originalItem == null || // New item
+                        originalItem.name != item.name ||
+                        originalItem.quantity != item.quantity ||
+                        originalItem.unit != item.unit ||
+                        originalItem.calories != item.calories ||
+                        originalItem.carbsG != item.carbsG ||
+                        originalItem.proteinG != item.proteinG ||
+                        originalItem.fatG != item.fatG
+
+                    if (hasChanged) {
+                        item.copy(
+                            provenance = item.provenance.copy(
+                                source = ProvenanceSource.USER_OVERRIDE,
+                                confidence = 1.0f
+                            ),
+                            // Generate/Update canonical key for exact future matching
+                            canonicalKey = canonicalKeyGenerator.generate(item.name)
+                        )
+                    } else {
+                        // Preserve original provenance if untouched
+                        item
+                    }
+                }
+            
+                // Recalculate totals from items
+                val totalCalories = updatedItems.sumOf { it.calories.toDouble() }.toFloat()
+                val totalCarbs = updatedItems.sumOf { it.carbsG.toDouble() }.toFloat()
+                val totalProtein = updatedItems.sumOf { it.proteinG.toDouble() }.toFloat()
+                val totalFat = updatedItems.sumOf { it.fatG.toDouble() }.toFloat()
+                
                 val updatedEntry = entry.copy(
-                    totalCalories = entry.items.map { it.calories }.sum(),
-                    totalCarbsG = entry.items.sumOf { it.carbsG.toDouble() }.toFloat(),
-                    totalProteinG = entry.items.sumOf { it.proteinG.toDouble() }.toFloat(),
-                    totalFatG = entry.items.sumOf { it.fatG.toDouble() }.toFloat(),
+                    items = updatedItems,
+                    totalCalories = totalCalories,
+                    totalCarbsG = totalCarbs,
+                    totalProteinG = totalProtein,
+                    totalFatG = totalFat,
                     updatedAt = System.currentTimeMillis()
                 )
-                
+                    
                 loggingRepository.updateFoodEntry(updatedEntry)
                 _uiState.update { it.copy(foodEntry = updatedEntry) }
 
@@ -202,6 +165,65 @@ class EntryDetailViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    fun addFoodItem(name: String, quantity: Float, unit: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                val currentEntry = uiState.value.foodEntry ?: return@launch
+                
+                // Resolve the new item
+                val result = foodsRepository.resolveFood(name, quantity, unit)
+                
+                val newItem = when (result) {
+                    is ResolvedFoodResult.Success -> result.foodItem.copy(
+                        id = 0,
+                        displayOrder = currentEntry.items.size
+                    )
+                    ResolvedFoodResult.NotFound, is ResolvedFoodResult.Error -> {
+                        // Fallback handling if repository fails (though repo usually handles fallback)
+                        FoodItem(
+                            id = 0,
+                            name = name,
+                            matchedName = null,
+                            quantity = quantity,
+                            unit = unit,
+                            calories = 0f,
+                            carbsG = 0f,
+                            proteinG = 0f,
+                            fatG = 0f,
+                            provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                            displayOrder = currentEntry.items.size,
+                            canonicalKey = canonicalKeyGenerator.generate(name)
+                        )
+                    }
+                }
+
+                val updatedItems = currentEntry.items + newItem
+                
+                // Recalculate totals
+                val totalCalories = updatedItems.sumOf { it.calories.toDouble() }.toFloat()
+                val totalCarbs = updatedItems.sumOf { it.carbsG.toDouble() }.toFloat()
+                val totalProtein = updatedItems.sumOf { it.proteinG.toDouble() }.toFloat()
+                val totalFat = updatedItems.sumOf { it.fatG.toDouble() }.toFloat()
+
+                val updatedEntry = currentEntry.copy(
+                    items = updatedItems,
+                    totalCalories = totalCalories,
+                    totalCarbsG = totalCarbs,
+                    totalProteinG = totalProtein,
+                    totalFatG = totalFat,
+                    updatedAt = System.currentTimeMillis()
+                )
+
+                loggingRepository.updateFoodEntry(updatedEntry)
+                _uiState.update { it.copy(foodEntry = updatedEntry, isLoading = false) }
+
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
         }
     }
@@ -282,57 +304,39 @@ class EntryDetailViewModel @Inject constructor(
     fun updateExerciseEntry(entry: ExerciseEntry) {
         viewModelScope.launch {
             try {
-                val dbEntry = loggingRepository.getExerciseEntryById(entry.id)
-                val dbItems = dbEntry?.items ?: emptyList()
-                val userWeightKg = getCurrentWeight()
+                val originalEntry = loggingRepository.getExerciseEntryById(entry.id)
+                val originalItems = originalEntry?.items ?: emptyList()
                 
-                // Parallel resolve for changed items
-                val finalItems = coroutineScope {
-                    entry.items.mapIndexed { index, item ->
-                        async {
-                            val dbItem = dbItems.getOrNull(index)
-                            if (dbItem == null || 
-                                dbItem.activityName != item.activityName || 
-                                dbItem.durationMinutes != item.durationMinutes) {
-                                
-                                try {
-                                    val response = backendApi.resolveExercise(
-                                        ResolveExerciseRequest(
-                                            activity = item.activityName,
-                                            durationMinutes = item.durationMinutes,
-                                            userWeightKg = userWeightKg
-                                        )
-                                    )
-                                    if (response.isSuccessful && response.body() != null) {
-                                        val body = response.body()!!
-                                        item.copy(
-                                            id = item.id, // Keep ID if existing
-                                            caloriesBurned = body.caloriesBurned?.toFloat() ?: item.caloriesBurned,
-                                            metValue = body.metValue ?: item.metValue,
-                                            displayOrder = index
-                                        )
-                                    } else {
-                                        item.copy(displayOrder = index)
-                                    }
-                                } catch (e: Exception) {
-                                    item.copy(displayOrder = index)
-                                }
-                            } else {
-                                item
-                            }
-                        }
-                    }.awaitAll()
+                val updatedItems = entry.items.map { item ->
+                    val originalItem = originalItems.find { it.id == item.id }
+                    
+                    // Check if critical fields have changed
+                    val hasChanged = originalItem == null || // New item
+                        originalItem.activityName != item.activityName ||
+                        originalItem.durationMinutes != item.durationMinutes ||
+                        originalItem.caloriesBurned != item.caloriesBurned
+
+                    if (hasChanged) {
+                        item.copy(
+                            provenance = item.provenance.copy(
+                                source = ProvenanceSource.USER_OVERRIDE,
+                                confidence = 1.0f
+                            )
+                        )
+                    } else {
+                        item
+                    }
                 }
 
-                val reanalyzedEntry = entry.copy(
-                    items = finalItems,
-                    totalCalories = finalItems.map { it.caloriesBurned }.sum(),
-                    totalDurationMinutes = finalItems.sumOf { it.durationMinutes },
+                val updatedEntry = entry.copy(
+                    items = updatedItems,
+                    totalCalories = updatedItems.map { it.caloriesBurned }.sum(),
+                    totalDurationMinutes = updatedItems.sumOf { it.durationMinutes },
                     updatedAt = System.currentTimeMillis()
                 )
 
-                loggingRepository.updateExerciseEntry(reanalyzedEntry)
-                _uiState.update { it.copy(exerciseEntry = reanalyzedEntry) }
+                loggingRepository.updateExerciseEntry(updatedEntry)
+                _uiState.update { it.copy(exerciseEntry = updatedEntry) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
             }

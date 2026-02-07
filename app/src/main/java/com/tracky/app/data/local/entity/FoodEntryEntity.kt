@@ -161,5 +161,14 @@ data class FoodItemEntity(
     /**
      * Order within the entry for display
      */
-    val displayOrder: Int
+    /**
+     * Order within the entry for display
+     */
+    val displayOrder: Int,
+    
+    /**
+     * Canonical key for exact reuse (e.g., "rice_white_cooked")
+     * Added in v5
+     */
+    val canonicalKey: String? = null
 )

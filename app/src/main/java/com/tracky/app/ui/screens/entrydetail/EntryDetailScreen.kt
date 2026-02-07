@@ -184,10 +184,7 @@ fun EntryDetailScreen(
                  showActionsSheet = false
                  showEditSheet = true 
             },
-            onAdjust = { 
-                 showActionsSheet = false
-                 showEditSheet = true 
-            },
+
             onChangeDateTime = {
                  showActionsSheet = false
                  showDateTimeSheet = true 
@@ -212,11 +209,14 @@ fun EntryDetailScreen(
             )
         }
         uiState.exerciseEntry?.let { entry ->
-            // Placeholder: For now exercise entry editing is done via item list or deleting/re-adding
-            // But if we have an edit sheet for Exercise, it would go here.
-            // Assuming EditExerciseEntrySheet exists or uses generic approach.
-            // For now, let's close it to avoid stuck state if not implemented.
-            showEditSheet = false
+            EditExerciseEntrySheet(
+                entry = entry,
+                onDismiss = { showEditSheet = false },
+                onSave = { updatedEntry ->
+                    viewModel.updateExerciseEntry(updatedEntry)
+                    showEditSheet = false
+                }
+            )
         }
     }
 
@@ -355,12 +355,7 @@ private fun FoodItemRow(item: FoodItem) {
             }
         }
 
-        // Provenance
-        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
-        TrackyBodySmall(
-            text = "Source: ${item.provenance.source.value}",
-            color = TrackyColors.TextTertiary
-        )
+
     }
 }
 

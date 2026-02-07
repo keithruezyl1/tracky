@@ -98,6 +98,8 @@ import com.tracky.app.ui.camera.CameraCaptureScreen
 import com.tracky.app.ui.camera.uriToBase64
 import com.tracky.app.ui.components.DayStatus
 import com.tracky.app.ui.components.TrackyBodySmall
+import com.tracky.app.ui.components.TrackyText
+import com.tracky.app.ui.components.TrackyTextStyle
 import com.tracky.app.ui.components.TrackyBodyText
 import com.tracky.app.ui.components.TrackyBottomSheet
 import com.tracky.app.ui.components.TrackyButtonPrimary
@@ -794,7 +796,14 @@ private fun FoodDraftCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 TrackyBodyText(text = "${item.quantity.toSmartString()} ${item.unit} ${item.name}")
-                TrackyBodySmall(text = "${item.calories.toInt()} kcal")
+                Column(horizontalAlignment = Alignment.End) {
+                    TrackyBodySmall(text = "${item.calories.toInt()} kcal")
+                    TrackyText(
+                        text = "C: ${item.carbsG.toInt()}g P: ${item.proteinG.toInt()}g F: ${item.fatG.toInt()}g",
+                        style = TrackyTextStyle.LabelExtraSmall,
+                        color = TrackyColors.TextTertiary
+                    )
+                }
             }
         }
 

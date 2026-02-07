@@ -7,6 +7,7 @@ import com.tracky.app.data.repository.FoodsRepository;
 import com.tracky.app.data.repository.LoggingRepository;
 import com.tracky.app.data.repository.ProfileRepository;
 import com.tracky.app.data.repository.WeightRepository;
+import com.tracky.app.domain.resolver.CanonicalKeyGenerator;
 import com.tracky.app.ui.haptics.HapticManager;
 import com.tracky.app.ui.sound.SoundManager;
 import dagger.internal.DaggerGenerated;
@@ -49,6 +50,8 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
 
   private final Provider<HapticManager> hapticManagerProvider;
 
+  private final Provider<CanonicalKeyGenerator> canonicalKeyGeneratorProvider;
+
   public EntryDetailViewModel_Factory(Provider<SavedStateHandle> savedStateHandleProvider,
       Provider<LoggingRepository> loggingRepositoryProvider,
       Provider<SavedEntryDao> savedEntryDaoProvider,
@@ -56,7 +59,8 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
       Provider<TrackyBackendApi> backendApiProvider,
       Provider<ProfileRepository> profileRepositoryProvider,
       Provider<WeightRepository> weightRepositoryProvider,
-      Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider) {
+      Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider,
+      Provider<CanonicalKeyGenerator> canonicalKeyGeneratorProvider) {
     this.savedStateHandleProvider = savedStateHandleProvider;
     this.loggingRepositoryProvider = loggingRepositoryProvider;
     this.savedEntryDaoProvider = savedEntryDaoProvider;
@@ -66,11 +70,12 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
     this.weightRepositoryProvider = weightRepositoryProvider;
     this.soundManagerProvider = soundManagerProvider;
     this.hapticManagerProvider = hapticManagerProvider;
+    this.canonicalKeyGeneratorProvider = canonicalKeyGeneratorProvider;
   }
 
   @Override
   public EntryDetailViewModel get() {
-    return newInstance(savedStateHandleProvider.get(), loggingRepositoryProvider.get(), savedEntryDaoProvider.get(), foodsRepositoryProvider.get(), backendApiProvider.get(), profileRepositoryProvider.get(), weightRepositoryProvider.get(), soundManagerProvider.get(), hapticManagerProvider.get());
+    return newInstance(savedStateHandleProvider.get(), loggingRepositoryProvider.get(), savedEntryDaoProvider.get(), foodsRepositoryProvider.get(), backendApiProvider.get(), profileRepositoryProvider.get(), weightRepositoryProvider.get(), soundManagerProvider.get(), hapticManagerProvider.get(), canonicalKeyGeneratorProvider.get());
   }
 
   public static EntryDetailViewModel_Factory create(
@@ -81,15 +86,17 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
       Provider<TrackyBackendApi> backendApiProvider,
       Provider<ProfileRepository> profileRepositoryProvider,
       Provider<WeightRepository> weightRepositoryProvider,
-      Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider) {
-    return new EntryDetailViewModel_Factory(savedStateHandleProvider, loggingRepositoryProvider, savedEntryDaoProvider, foodsRepositoryProvider, backendApiProvider, profileRepositoryProvider, weightRepositoryProvider, soundManagerProvider, hapticManagerProvider);
+      Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider,
+      Provider<CanonicalKeyGenerator> canonicalKeyGeneratorProvider) {
+    return new EntryDetailViewModel_Factory(savedStateHandleProvider, loggingRepositoryProvider, savedEntryDaoProvider, foodsRepositoryProvider, backendApiProvider, profileRepositoryProvider, weightRepositoryProvider, soundManagerProvider, hapticManagerProvider, canonicalKeyGeneratorProvider);
   }
 
   public static EntryDetailViewModel newInstance(SavedStateHandle savedStateHandle,
       LoggingRepository loggingRepository, SavedEntryDao savedEntryDao,
       FoodsRepository foodsRepository, TrackyBackendApi backendApi,
       ProfileRepository profileRepository, WeightRepository weightRepository,
-      SoundManager soundManager, HapticManager hapticManager) {
-    return new EntryDetailViewModel(savedStateHandle, loggingRepository, savedEntryDao, foodsRepository, backendApi, profileRepository, weightRepository, soundManager, hapticManager);
+      SoundManager soundManager, HapticManager hapticManager,
+      CanonicalKeyGenerator canonicalKeyGenerator) {
+    return new EntryDetailViewModel(savedStateHandle, loggingRepository, savedEntryDao, foodsRepository, backendApi, profileRepository, weightRepository, soundManager, hapticManager, canonicalKeyGenerator);
   }
 }
