@@ -6,6 +6,7 @@ import com.tracky.app.data.repository.GoalRepository;
 import com.tracky.app.data.repository.LoggingRepository;
 import com.tracky.app.data.repository.ProfileRepository;
 import com.tracky.app.domain.usecase.DraftLoggingInteractor;
+import com.tracky.app.domain.usecase.StreakInteractor;
 import com.tracky.app.ui.haptics.HapticManager;
 import com.tracky.app.ui.sound.SoundManager;
 import dagger.internal.DaggerGenerated;
@@ -42,6 +43,8 @@ public final class HomeViewModel_Factory implements Factory<HomeViewModel> {
 
   private final Provider<UserPreferencesDataStore> preferencesDataStoreProvider;
 
+  private final Provider<StreakInteractor> streakInteractorProvider;
+
   private final Provider<SoundManager> soundManagerProvider;
 
   private final Provider<HapticManager> hapticManagerProvider;
@@ -52,6 +55,7 @@ public final class HomeViewModel_Factory implements Factory<HomeViewModel> {
       Provider<DraftLoggingInteractor> draftLoggingInteractorProvider,
       Provider<ChatRepository> chatRepositoryProvider,
       Provider<UserPreferencesDataStore> preferencesDataStoreProvider,
+      Provider<StreakInteractor> streakInteractorProvider,
       Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider) {
     this.loggingRepositoryProvider = loggingRepositoryProvider;
     this.profileRepositoryProvider = profileRepositoryProvider;
@@ -59,13 +63,14 @@ public final class HomeViewModel_Factory implements Factory<HomeViewModel> {
     this.draftLoggingInteractorProvider = draftLoggingInteractorProvider;
     this.chatRepositoryProvider = chatRepositoryProvider;
     this.preferencesDataStoreProvider = preferencesDataStoreProvider;
+    this.streakInteractorProvider = streakInteractorProvider;
     this.soundManagerProvider = soundManagerProvider;
     this.hapticManagerProvider = hapticManagerProvider;
   }
 
   @Override
   public HomeViewModel get() {
-    return newInstance(loggingRepositoryProvider.get(), profileRepositoryProvider.get(), goalRepositoryProvider.get(), draftLoggingInteractorProvider.get(), chatRepositoryProvider.get(), preferencesDataStoreProvider.get(), soundManagerProvider.get(), hapticManagerProvider.get());
+    return newInstance(loggingRepositoryProvider.get(), profileRepositoryProvider.get(), goalRepositoryProvider.get(), draftLoggingInteractorProvider.get(), chatRepositoryProvider.get(), preferencesDataStoreProvider.get(), streakInteractorProvider.get(), soundManagerProvider.get(), hapticManagerProvider.get());
   }
 
   public static HomeViewModel_Factory create(Provider<LoggingRepository> loggingRepositoryProvider,
@@ -74,15 +79,16 @@ public final class HomeViewModel_Factory implements Factory<HomeViewModel> {
       Provider<DraftLoggingInteractor> draftLoggingInteractorProvider,
       Provider<ChatRepository> chatRepositoryProvider,
       Provider<UserPreferencesDataStore> preferencesDataStoreProvider,
+      Provider<StreakInteractor> streakInteractorProvider,
       Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider) {
-    return new HomeViewModel_Factory(loggingRepositoryProvider, profileRepositoryProvider, goalRepositoryProvider, draftLoggingInteractorProvider, chatRepositoryProvider, preferencesDataStoreProvider, soundManagerProvider, hapticManagerProvider);
+    return new HomeViewModel_Factory(loggingRepositoryProvider, profileRepositoryProvider, goalRepositoryProvider, draftLoggingInteractorProvider, chatRepositoryProvider, preferencesDataStoreProvider, streakInteractorProvider, soundManagerProvider, hapticManagerProvider);
   }
 
   public static HomeViewModel newInstance(LoggingRepository loggingRepository,
       ProfileRepository profileRepository, GoalRepository goalRepository,
       DraftLoggingInteractor draftLoggingInteractor, ChatRepository chatRepository,
-      UserPreferencesDataStore preferencesDataStore, SoundManager soundManager,
-      HapticManager hapticManager) {
-    return new HomeViewModel(loggingRepository, profileRepository, goalRepository, draftLoggingInteractor, chatRepository, preferencesDataStore, soundManager, hapticManager);
+      UserPreferencesDataStore preferencesDataStore, StreakInteractor streakInteractor,
+      SoundManager soundManager, HapticManager hapticManager) {
+    return new HomeViewModel(loggingRepository, profileRepository, goalRepository, draftLoggingInteractor, chatRepository, preferencesDataStore, streakInteractor, soundManager, hapticManager);
   }
 }

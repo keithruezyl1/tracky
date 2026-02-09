@@ -11,6 +11,8 @@ import com.tracky.app.domain.model.ChatMessage
 import com.tracky.app.domain.model.DailyGoal
 import com.tracky.app.domain.model.DailySummary
 import com.tracky.app.domain.model.DraftData
+import com.tracky.app.domain.model.FoodEntry
+import com.tracky.app.domain.model.ExerciseEntry
 import com.tracky.app.domain.usecase.ConfirmResult
 import com.tracky.app.domain.usecase.DraftLoggingInteractor
 import com.tracky.app.domain.usecase.DraftState
@@ -21,8 +23,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
@@ -33,6 +40,7 @@ import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val loggingRepository: LoggingRepository,
@@ -41,6 +49,7 @@ class HomeViewModel @Inject constructor(
     private val draftLoggingInteractor: DraftLoggingInteractor,
     private val chatRepository: ChatRepository,
     private val preferencesDataStore: UserPreferencesDataStore,
+    private val streakInteractor: com.tracky.app.domain.usecase.StreakInteractor,
     private val soundManager: com.tracky.app.ui.sound.SoundManager,
     private val hapticManager: com.tracky.app.ui.haptics.HapticManager
 ) : ViewModel() {
@@ -50,26 +59,49 @@ class HomeViewModel @Inject constructor(
     private val _selectedDate = MutableStateFlow(getTodayDate())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
-    private val _uiState = MutableStateFlow(HomeUiState())
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    // Day strip dates (oldest to newest)
+    private val _weekDates = MutableStateFlow<List<LocalDate>>(computeWeekDates(getTodayDate()))
+    val weekDates: StateFlow<List<LocalDate>> = _weekDates.asStateFlow()
 
-    private val _showSuccessOverlay = MutableStateFlow(false)
-    val showSuccessOverlay: StateFlow<Boolean> = _showSuccessOverlay.asStateFlow()
+    private val _uiState = MutableStateFlow(HomeUiState())
+    // We'll keep the base UI state for simpler properties, but summaries will be reactive.
+    
+    val showSuccessOverlay = MutableStateFlow(false)
+
+    private var backupFoodEntry: FoodEntry? = null
+    private var backupExerciseEntry: ExerciseEntry? = null
+    private var isReanalyzing = false
 
     fun dismissSuccessOverlay() {
-        _showSuccessOverlay.value = false
+        showSuccessOverlay.value = false
     }
 
-    val draftState: StateFlow<DraftState> = kotlinx.coroutines.flow.combine(
+    val draftState: StateFlow<DraftState> = combine(
         draftLoggingInteractor.draftState,
         _selectedDate
     ) { draft, date ->
         when (draft) {
+            is DraftState.Drafting -> if (draft.date == date) draft else DraftState.Idle
             is DraftState.FoodDraft -> if (draft.data.date == date) draft else DraftState.Idle
             is DraftState.ExerciseDraft -> if (draft.data.date == date) draft else DraftState.Idle
             else -> draft
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DraftState.Idle)
+
+    // Draft states for all dates in the current strip (for animation pinning)
+    val weekDraftStates: StateFlow<Map<LocalDate, DraftState>> = combine(
+        draftLoggingInteractor.draftState,
+        _weekDates
+    ) { draft, dates ->
+        dates.associateWith { date ->
+            when (draft) {
+                is DraftState.Drafting -> if (draft.date == date) draft else DraftState.Idle
+                is DraftState.FoodDraft -> if (draft.data.date == date) draft else DraftState.Idle
+                is DraftState.ExerciseDraft -> if (draft.data.date == date) draft else DraftState.Idle
+                else -> DraftState.Idle
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     // Chat messages for the currently selected date
     val chatMessages: StateFlow<List<ChatMessage>> = _selectedDate
@@ -78,16 +110,20 @@ class HomeViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Day strip dates (oldest to newest)
-    // Computed dynamically based on selectedDate
-    private val _weekDates = MutableStateFlow<List<LocalDate>>(computeWeekDates(getTodayDate()))
-    val weekDates: StateFlow<List<LocalDate>> = _weekDates.asStateFlow()
+    // All chat messages for dates in the current strip
+    val weekChatMessages: StateFlow<Map<LocalDate, List<ChatMessage>>> = _weekDates
+        .flatMapLatest { dates ->
+            val messageFlows = dates.map { date ->
+                chatRepository.getMessagesForDate(date.toString()).map { date to it }
+            }
+            combine(messageFlows) { it.toMap() }
+        }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    // Week summaries for calendar status coloring
-    private val _weekSummaries = MutableStateFlow<Map<LocalDate, DailySummary?>>(emptyMap())
-    val weekSummaries: StateFlow<Map<LocalDate, DailySummary?>> = _weekSummaries.asStateFlow()
 
-    // Current goal for fallback when day-specific goal is null
+    // Week summaries are now computed reactively below
+
     val currentGoal: StateFlow<DailyGoal?> = goalRepository.getCurrentGoal()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -100,19 +136,91 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    // Daily summary flow
+    // Daily summary flow - Unified Single Source of Truth
     val dailySummary: StateFlow<DailySummary?> = _selectedDate
         .flatMapLatest { date ->
             loggingRepository.getDailySummary(date.toString())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    // Reactive UI State combining all sources
+    val uiState: StateFlow<HomeUiState> = combine(
+        _uiState,
+        dailySummary,
+        profileRepository.getProfile()
+    ) { baseState, summary, profile ->
+        baseState.copy(
+            currentSummary = summary,
+            userWeightKg = profile?.currentWeightKg ?: 70f
+        )
+    }
+    .catch { e ->
+        _uiState.update { it.copy(error = "Sync Error: ${e.message}") }
+    }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
+
     init {
-        observeSelectedDateChanges()
         observePhotoPreference()
-        loadWeekSummaries()
         monitorGlobalDraftState()
         observeHapticsPreference()
+        observeStreakState()
+        initializeTimezone()
+    }
+
+    private fun observeStreakState() {
+        viewModelScope.launch {
+            preferencesDataStore.streakStateJson.collect { json ->
+                if (json != null) {
+                    try {
+                        val info = kotlinx.serialization.json.Json.decodeFromString(com.tracky.app.domain.model.StreakInfo.serializer(), json)
+                        _uiState.update { it.copy(streakInfo = info) }
+                        checkStreakAnimation(info)
+                    } catch (e: Exception) {
+                        streakInteractor.calculateStreak()
+                    }
+                } else {
+                    streakInteractor.calculateStreak()
+                }
+            }
+        }
+    }
+
+    private suspend fun checkStreakAnimation(info: com.tracky.app.domain.model.StreakInfo) {
+        val lastCount = preferencesDataStore.streakLastAnimatedCount.first()
+        val lastDate = preferencesDataStore.streakLastAnimatedDate.first()
+        val today = getTodayDate().toString()
+
+        // Animate only if count increased and status is ACTIVE, and not animated today for this count
+        if (info.status == com.tracky.app.domain.model.StreakStatus.ACTIVE && 
+            info.count > lastCount && 
+            lastDate != today) {
+            
+            _uiState.update { it.copy(shouldAnimateStreak = true) }
+            preferencesDataStore.setStreakLastAnimatedCount(info.count)
+            preferencesDataStore.setStreakLastAnimatedDate(today)
+        }
+    }
+
+    fun onStreakAnimationComplete() {
+        _uiState.update { it.copy(shouldAnimateStreak = false) }
+    }
+
+    fun showStreakModal() {
+        _uiState.update { it.copy(showStreakModal = true) }
+    }
+
+    fun dismissStreakModal() {
+        _uiState.update { it.copy(showStreakModal = false) }
+    }
+
+    private fun initializeTimezone() {
+        viewModelScope.launch {
+            val existing = preferencesDataStore.homeTimezone.first()
+            if (existing == null) {
+                val current = TimeZone.currentSystemDefault().id
+                preferencesDataStore.setHomeTimezone(current)
+            }
+        }
     }
 
     private fun monitorGlobalDraftState() {
@@ -120,6 +228,10 @@ class HomeViewModel @Inject constructor(
             draftLoggingInteractor.draftState.collect { globalState ->
                 if (globalState is DraftState.Idle || globalState is DraftState.Drafting) {
                     _uiState.update { it.copy(shouldAnimateDraft = true) }
+                }
+                if (globalState is DraftState.Error && isReanalyzing) {
+                    // Restore backup on error
+                    restoreBackup()
                 }
             }
         }
@@ -132,47 +244,19 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private var weekSummariesJob: Job? = null
-
-    private fun loadWeekSummaries() {
-        weekSummariesJob?.cancel()
-        weekSummariesJob = viewModelScope.launch {
-            _weekSummaries.value = emptyMap()
-            _weekDates.value.forEach { date ->
-                launch {
-                    loggingRepository.getDailySummary(date.toString()).collect { summary ->
-                        _weekSummaries.update { current ->
-                            current + (date to summary)
-                        }
-                    }
-                }
+    // Reactive Week Summaries - No more manual jobs or leaks
+    val weekSummaries: StateFlow<Map<LocalDate, DailySummary?>> = _weekDates
+        .flatMapLatest { dates ->
+            val summaryFlows = dates.map { date ->
+                loggingRepository.getDailySummary(date.toString()).map { date to it }
             }
+            combine(summaryFlows) { it.toMap() }
         }
-    }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    private fun observeSelectedDateChanges() {
-        viewModelScope.launch {
-            _selectedDate.collect { date ->
-                // Do NOT cancel drafts when changing dates (Persistence Fix)
-                loadDailySummary(date)
-            }
-        }
-    }
-
-    private fun loadDailySummary(date: LocalDate) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            
-            loggingRepository.getDailySummary(date.toString()).collect { summary ->
-                _uiState.update { 
-                    it.copy(
-                        isLoading = false,
-                        currentSummary = summary
-                    ) 
-                }
-            }
-        }
-    }
+    // loadDailySummary and observeSelectedDateChanges removed. 
+    // State is now handled reactively by dailySummary and uiState flows.
 
     private fun observePhotoPreference() {
         viewModelScope.launch {
@@ -191,22 +275,24 @@ class HomeViewModel @Inject constructor(
     }
 
     fun selectDate(date: LocalDate) {
-        _selectedDate.value = date
+        val today = getTodayDate()
+        _selectedDate.value = if (date > today) today else date
     }
 
     fun selectToday() {
         _selectedDate.value = getTodayDate()
         _weekDates.value = computeWeekDates(getTodayDate())
-        loadWeekSummaries()
     }
 
     /**
      * Select a specific date from calendar and update the day strip
      */
     fun selectDateFromCalendar(date: LocalDate) {
-        _selectedDate.value = date
-        _weekDates.value = computeWeekDates(date)
-        loadWeekSummaries()
+        val today = getTodayDate()
+        val effectiveDate = if (date > today) today else date
+        val newWeekDates = computeWeekDates(effectiveDate)
+        _weekDates.value = newWeekDates
+        _selectedDate.value = effectiveDate
     }
 
     /**
@@ -217,14 +303,13 @@ class HomeViewModel @Inject constructor(
         val dates = _weekDates.value
         val currentIndex = dates.indexOf(_selectedDate.value)
         if (currentIndex > 0) {
-            // Move to previous day within current window
             _selectedDate.value = dates[currentIndex - 1]
-        } else if (currentIndex == 0) {
-            // At leftmost edge - shift window back by one full page (no overlap)
+        } else {
+            // Shift window back by a full chunk (6 days)
             val newEndDate = dates.first().minus(1, DateTimeUnit.DAY)
-            _weekDates.value = computeWeekDates(newEndDate)
-            _selectedDate.value = _weekDates.value.last() // Select the new rightmost day
-            loadWeekSummaries()
+            val newWeekDates = computeWeekDates(newEndDate)
+            _weekDates.value = newWeekDates
+            _selectedDate.value = newWeekDates.last()
         }
     }
 
@@ -238,14 +323,13 @@ class HomeViewModel @Inject constructor(
         val today = getTodayDate()
         
         if (currentIndex >= 0 && currentIndex < dates.size - 1) {
-            // Move to next day within current window
             _selectedDate.value = dates[currentIndex + 1]
-        } else if (currentIndex == dates.size - 1 && dates.last() < today) {
-            // At rightmost edge and not at today - shift window forward by one full page (no overlap)
+        } else if (dates.last() < today) {
+            // Shift window forward by a full chunk (6 days)
             val newEndDate = dates.last().plus(stripDays.toLong(), DateTimeUnit.DAY)
-            _weekDates.value = computeWeekDates(newEndDate)
-            _selectedDate.value = _weekDates.value.first() // Select the new leftmost day
-            loadWeekSummaries()
+            val newWeekDates = computeWeekDates(newEndDate)
+            _weekDates.value = newWeekDates
+            _selectedDate.value = newWeekDates.first()
         }
     }
 
@@ -257,8 +341,6 @@ class HomeViewModel @Inject constructor(
             loggingRepository.deleteFoodEntry(entryId)
             soundManager.playCrumple()
             hapticManager.vibrateSoft()
-            loadDailySummary(_selectedDate.value)
-            loadWeekSummaries()
         }
     }
 
@@ -270,8 +352,6 @@ class HomeViewModel @Inject constructor(
             loggingRepository.deleteExerciseEntry(entryId)
             soundManager.playCrumple()
             hapticManager.vibrateSoft()
-            loadDailySummary(_selectedDate.value)
-            loadWeekSummaries()
         }
     }
 
@@ -282,11 +362,28 @@ class HomeViewModel @Inject constructor(
     /**
      * Log food or exercise using AI auto-detection
      */
-    fun logAutoFromText(text: String) {
+    fun logAutoFromText(text: String, reanalyzeId: Long? = null, reanalyzeType: String? = null) {
         viewModelScope.launch {
+            if (reanalyzeId != null && reanalyzeType != null) {
+                isReanalyzing = true
+                if (reanalyzeType == "food") {
+                    backupFoodEntry = loggingRepository.getFoodEntryById(reanalyzeId)
+                    backupExerciseEntry = null
+                    loggingRepository.deleteFoodEntry(reanalyzeId)
+                } else {
+                    backupExerciseEntry = loggingRepository.getExerciseEntryById(reanalyzeId)
+                    backupFoodEntry = null
+                    loggingRepository.deleteExerciseEntry(reanalyzeId)
+                }
+            } else {
+                isReanalyzing = false
+                backupFoodEntry = null
+                backupExerciseEntry = null
+            }
+
             // Append user chat message
             val date = _selectedDate.value.toString()
-            chatRepository.addUserTextMessage(date, text)
+            chatRepository.addUserTextMessage(date, if (isReanalyzing) "Re-analyzing: $text" else text)
 
             _uiState.update { it.copy(inputText = "") }
             draftLoggingInteractor.draftAutoFromText(text, _selectedDate.value)
@@ -336,10 +433,12 @@ class HomeViewModel @Inject constructor(
                 is ConfirmResult.Success -> {
                     soundManager.playDing()
                     hapticManager.vibrateSuccess()
-                    _showSuccessOverlay.value = true
+                    showSuccessOverlay.value = true
                     // Refresh summary and week summaries
-                    loadDailySummary(_selectedDate.value)
-                    loadWeekSummaries()
+                    // Clear re-analysis state
+                    isReanalyzing = false
+                    backupFoodEntry = null
+                    backupExerciseEntry = null
                 }
                 is ConfirmResult.Error -> {
                     _uiState.update { it.copy(error = result.message) }
@@ -354,10 +453,12 @@ class HomeViewModel @Inject constructor(
                 is ConfirmResult.Success -> {
                     soundManager.playDing()
                     hapticManager.vibrateSuccess()
-                    _showSuccessOverlay.value = true
+                    showSuccessOverlay.value = true
                     // Refresh summary and week summaries
-                    loadDailySummary(_selectedDate.value)
-                    loadWeekSummaries()
+                    // Clear re-analysis state
+                    isReanalyzing = false
+                    backupFoodEntry = null
+                    backupExerciseEntry = null
                 }
                 is ConfirmResult.Error -> {
                     _uiState.update { it.copy(error = result.message) }
@@ -368,17 +469,62 @@ class HomeViewModel @Inject constructor(
 
     fun cancelDraft(draftId: Long? = null) {
         draftLoggingInteractor.cancelDraft(draftId)
-    }
-
-    fun updateFoodDraftItem(draftId: Long, index: Int, name: String, quantity: Double, unit: String) {
-        viewModelScope.launch {
-            draftLoggingInteractor.updateFoodDraftItem(draftId, index, name, quantity, unit)
+        
+        // Restore backup if we were reanalyzing
+        if (isReanalyzing) {
+            restoreBackup()
         }
     }
 
-    fun updateExerciseDraftItem(draftId: Long, index: Int, activity: String, durationMinutes: Int) {
+    private fun restoreBackup() {
         viewModelScope.launch {
-            draftLoggingInteractor.updateExerciseDraftItem(draftId, index, activity, durationMinutes)
+            val food = backupFoodEntry
+            if (food != null) {
+                loggingRepository.saveFoodEntry(food)
+            }
+            
+            val exercise = backupExerciseEntry
+            if (exercise != null) {
+                loggingRepository.saveExerciseEntry(exercise)
+            }
+            
+            isReanalyzing = false
+            backupFoodEntry = null
+            backupExerciseEntry = null
+        }
+    }
+
+    fun updateFoodDraftItem(
+        draftId: Long, 
+        index: Int, 
+        name: String, 
+        quantity: Double, 
+        unit: String,
+        calories: Float,
+        carbs: Float,
+        protein: Float,
+        fat: Float,
+        isManual: Boolean
+    ) {
+        viewModelScope.launch {
+            draftLoggingInteractor.updateFoodDraftItem(
+                draftId, index, name, quantity, unit, 
+                calories, carbs, protein, fat, isManual
+            )
+        }
+    }
+
+    fun updateExerciseDraftItem(
+        draftId: Long, 
+        index: Int, 
+        activity: String, 
+        durationMinutes: Int, 
+        intensity: com.tracky.app.domain.model.ExerciseIntensity,
+        calories: Float,
+        isManual: Boolean
+    ) {
+        viewModelScope.launch {
+            draftLoggingInteractor.updateExerciseDraftItem(draftId, index, activity, durationMinutes, intensity, calories, isManual)
         }
     }
 
@@ -419,14 +565,16 @@ class HomeViewModel @Inject constructor(
                 
                 // Start drafting with the new text
                 draftLoggingInteractor.draftFoodFromText(newText, _selectedDate.value)
-                
-                // Refresh the summary
-                loadDailySummary(_selectedDate.value)
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = "Failed to re-analyze: ${e.message}") }
             }
         }
     }
+
+    fun toggleSidebar() {
+        _uiState.update { it.copy(showSidebar = !it.showSidebar) }
+    }
+
 
     private fun getTodayDate(): LocalDate {
         return Clock.System.now()
@@ -443,7 +591,12 @@ data class HomeUiState(
     val error: String? = null,
     val storePhotosLocally: Boolean = true,
     val shouldAnimateDraft: Boolean = true,
-    val hapticsEnabled: Boolean = true
+    val hapticsEnabled: Boolean = true,
+    val userWeightKg: Float = 70f,
+    val streakInfo: com.tracky.app.domain.model.StreakInfo = com.tracky.app.domain.model.StreakInfo(),
+    val shouldAnimateStreak: Boolean = false,
+    val showStreakModal: Boolean = false,
+    val showSidebar: Boolean = false
 )
 
 enum class InputMode {

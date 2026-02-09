@@ -25,6 +25,7 @@ data class FoodEntry(
 /**
  * Domain model for Food Item
  */
+@Serializable
 data class FoodItem(
     val id: Long = 0,
     val name: String,
@@ -44,7 +45,25 @@ data class FoodItem(
     /**
      * Canonical key for exact reuse (e.g., "rice_white_cooked")
      */
-    val canonicalKey: String? = null
+    val canonicalKey: String? = null,
+    
+    /**
+     * Whether macros were manually edited by the user.
+     * If true, AI auto-reanalysis will NOT overwrite these values.
+     */
+    val isManualMacros: Boolean = false,
+
+    /**
+     * Monotonic revision number for analysis.
+     * Used to prevent race conditions during async updates.
+     */
+    val analysisRevision: Long = 0,
+
+    /**
+     * Pending suggested update from AI (if name changed but macros were manual).
+     * User can choose to apply or dismiss this.
+     */
+    val pendingSuggestion: FoodItem? = null
 ) {
     /**
      * Check if item is valid for history reuse.

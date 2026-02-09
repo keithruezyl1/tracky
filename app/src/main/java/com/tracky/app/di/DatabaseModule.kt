@@ -10,6 +10,7 @@ import com.tracky.app.data.local.dao.FoodsDatasetDao
 import com.tracky.app.data.local.dao.SavedEntryDao
 import com.tracky.app.data.local.dao.UserProfileDao
 import com.tracky.app.data.local.dao.WeightEntryDao
+import com.tracky.app.data.local.dao.DailyLogSummaryDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -65,5 +66,10 @@ object DatabaseModule {
     @Provides
     fun provideFoodsDatasetDao(database: TrackyDatabase): FoodsDatasetDao {
         return database.foodsDatasetDao()
+    }
+
+    @Provides
+    fun provideDailyLogSummaryDao(database: TrackyDatabase): DailyLogSummaryDao {
+        return database.dailyLogSummaryDao()
     }
 }

@@ -4,6 +4,7 @@ import android.database.Cursor;
 import android.os.CancellationSignal;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.collection.LongSparseArray;
 import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
@@ -13,6 +14,8 @@ import androidx.room.RoomSQLiteQuery;
 import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
+import androidx.room.util.RelationUtil;
+import androidx.room.util.StringUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
 import com.tracky.app.data.local.entity.FoodEntryEntity;
 import com.tracky.app.data.local.entity.FoodItemEntity;
@@ -23,6 +26,7 @@ import java.lang.Long;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.lang.StringBuilder;
 import java.lang.SuppressWarnings;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -97,7 +101,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR ABORT INTO `food_items` (`id`,`foodEntryId`,`name`,`matchedName`,`quantity`,`unit`,`calories`,`carbsG`,`proteinG`,`fatG`,`source`,`sourceId`,`confidence`,`displayOrder`,`canonicalKey`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR ABORT INTO `food_items` (`id`,`foodEntryId`,`name`,`matchedName`,`quantity`,`unit`,`calories`,`carbsG`,`proteinG`,`fatG`,`source`,`sourceId`,`confidence`,`displayOrder`,`canonicalKey`,`isManualMacros`,`analysisRevision`,`pendingSuggestionJson`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -129,6 +133,14 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           statement.bindNull(15);
         } else {
           statement.bindString(15, entity.getCanonicalKey());
+        }
+        final int _tmp = entity.isManualMacros() ? 1 : 0;
+        statement.bindLong(16, _tmp);
+        statement.bindLong(17, entity.getAnalysisRevision());
+        if (entity.getPendingSuggestionJson() == null) {
+          statement.bindNull(18);
+        } else {
+          statement.bindString(18, entity.getPendingSuggestionJson());
         }
       }
     };
@@ -200,7 +212,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `food_items` SET `id` = ?,`foodEntryId` = ?,`name` = ?,`matchedName` = ?,`quantity` = ?,`unit` = ?,`calories` = ?,`carbsG` = ?,`proteinG` = ?,`fatG` = ?,`source` = ?,`sourceId` = ?,`confidence` = ?,`displayOrder` = ?,`canonicalKey` = ? WHERE `id` = ?";
+        return "UPDATE OR ABORT `food_items` SET `id` = ?,`foodEntryId` = ?,`name` = ?,`matchedName` = ?,`quantity` = ?,`unit` = ?,`calories` = ?,`carbsG` = ?,`proteinG` = ?,`fatG` = ?,`source` = ?,`sourceId` = ?,`confidence` = ?,`displayOrder` = ?,`canonicalKey` = ?,`isManualMacros` = ?,`analysisRevision` = ?,`pendingSuggestionJson` = ? WHERE `id` = ?";
       }
 
       @Override
@@ -233,7 +245,15 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
         } else {
           statement.bindString(15, entity.getCanonicalKey());
         }
-        statement.bindLong(16, entity.getId());
+        final int _tmp = entity.isManualMacros() ? 1 : 0;
+        statement.bindLong(16, _tmp);
+        statement.bindLong(17, entity.getAnalysisRevision());
+        if (entity.getPendingSuggestionJson() == null) {
+          statement.bindNull(18);
+        } else {
+          statement.bindString(18, entity.getPendingSuggestionJson());
+        }
+        statement.bindLong(19, entity.getId());
       }
     };
     this.__preparedStmtOfDeleteById = new SharedSQLiteStatement(__db) {
@@ -616,6 +636,213 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
   }
 
   @Override
+  public Flow<List<FoodEntryWithItems>> getEntriesWithItemsForDate(final String date) {
+    final String _sql = "SELECT * FROM food_entries WHERE date = ? ORDER BY timestamp DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, date);
+    return CoroutinesRoom.createFlow(__db, true, new String[] {"food_items",
+        "food_entries"}, new Callable<List<FoodEntryWithItems>>() {
+      @Override
+      @NonNull
+      public List<FoodEntryWithItems> call() throws Exception {
+        __db.beginTransaction();
+        try {
+          final Cursor _cursor = DBUtil.query(__db, _statement, true, null);
+          try {
+            final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+            final int _cursorIndexOfDate = CursorUtil.getColumnIndexOrThrow(_cursor, "date");
+            final int _cursorIndexOfTime = CursorUtil.getColumnIndexOrThrow(_cursor, "time");
+            final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
+            final int _cursorIndexOfTotalCalories = CursorUtil.getColumnIndexOrThrow(_cursor, "totalCalories");
+            final int _cursorIndexOfTotalCarbsG = CursorUtil.getColumnIndexOrThrow(_cursor, "totalCarbsG");
+            final int _cursorIndexOfTotalProteinG = CursorUtil.getColumnIndexOrThrow(_cursor, "totalProteinG");
+            final int _cursorIndexOfTotalFatG = CursorUtil.getColumnIndexOrThrow(_cursor, "totalFatG");
+            final int _cursorIndexOfAnalysisNarrative = CursorUtil.getColumnIndexOrThrow(_cursor, "analysisNarrative");
+            final int _cursorIndexOfPhotoPath = CursorUtil.getColumnIndexOrThrow(_cursor, "photoPath");
+            final int _cursorIndexOfOriginalInput = CursorUtil.getColumnIndexOrThrow(_cursor, "originalInput");
+            final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+            final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+            final LongSparseArray<ArrayList<FoodItemEntity>> _collectionItems = new LongSparseArray<ArrayList<FoodItemEntity>>();
+            while (_cursor.moveToNext()) {
+              final long _tmpKey;
+              _tmpKey = _cursor.getLong(_cursorIndexOfId);
+              if (!_collectionItems.containsKey(_tmpKey)) {
+                _collectionItems.put(_tmpKey, new ArrayList<FoodItemEntity>());
+              }
+            }
+            _cursor.moveToPosition(-1);
+            __fetchRelationshipfoodItemsAscomTrackyAppDataLocalEntityFoodItemEntity(_collectionItems);
+            final List<FoodEntryWithItems> _result = new ArrayList<FoodEntryWithItems>(_cursor.getCount());
+            while (_cursor.moveToNext()) {
+              final FoodEntryWithItems _item;
+              final FoodEntryEntity _tmpEntry;
+              final long _tmpId;
+              _tmpId = _cursor.getLong(_cursorIndexOfId);
+              final String _tmpDate;
+              _tmpDate = _cursor.getString(_cursorIndexOfDate);
+              final String _tmpTime;
+              _tmpTime = _cursor.getString(_cursorIndexOfTime);
+              final long _tmpTimestamp;
+              _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
+              final float _tmpTotalCalories;
+              _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
+              final float _tmpTotalCarbsG;
+              _tmpTotalCarbsG = _cursor.getFloat(_cursorIndexOfTotalCarbsG);
+              final float _tmpTotalProteinG;
+              _tmpTotalProteinG = _cursor.getFloat(_cursorIndexOfTotalProteinG);
+              final float _tmpTotalFatG;
+              _tmpTotalFatG = _cursor.getFloat(_cursorIndexOfTotalFatG);
+              final String _tmpAnalysisNarrative;
+              if (_cursor.isNull(_cursorIndexOfAnalysisNarrative)) {
+                _tmpAnalysisNarrative = null;
+              } else {
+                _tmpAnalysisNarrative = _cursor.getString(_cursorIndexOfAnalysisNarrative);
+              }
+              final String _tmpPhotoPath;
+              if (_cursor.isNull(_cursorIndexOfPhotoPath)) {
+                _tmpPhotoPath = null;
+              } else {
+                _tmpPhotoPath = _cursor.getString(_cursorIndexOfPhotoPath);
+              }
+              final String _tmpOriginalInput;
+              if (_cursor.isNull(_cursorIndexOfOriginalInput)) {
+                _tmpOriginalInput = null;
+              } else {
+                _tmpOriginalInput = _cursor.getString(_cursorIndexOfOriginalInput);
+              }
+              final long _tmpCreatedAt;
+              _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+              final long _tmpUpdatedAt;
+              _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+              _tmpEntry = new FoodEntryEntity(_tmpId,_tmpDate,_tmpTime,_tmpTimestamp,_tmpTotalCalories,_tmpTotalCarbsG,_tmpTotalProteinG,_tmpTotalFatG,_tmpAnalysisNarrative,_tmpPhotoPath,_tmpOriginalInput,_tmpCreatedAt,_tmpUpdatedAt);
+              final ArrayList<FoodItemEntity> _tmpItemsCollection;
+              final long _tmpKey_1;
+              _tmpKey_1 = _cursor.getLong(_cursorIndexOfId);
+              _tmpItemsCollection = _collectionItems.get(_tmpKey_1);
+              _item = new FoodEntryWithItems(_tmpEntry,_tmpItemsCollection);
+              _result.add(_item);
+            }
+            __db.setTransactionSuccessful();
+            return _result;
+          } finally {
+            _cursor.close();
+          }
+        } finally {
+          __db.endTransaction();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
+  public Object getEntryWithItemsByIdOnce(final long id,
+      final Continuation<? super FoodEntryWithItems> $completion) {
+    final String _sql = "SELECT * FROM food_entries WHERE id = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, id);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, true, _cancellationSignal, new Callable<FoodEntryWithItems>() {
+      @Override
+      @Nullable
+      public FoodEntryWithItems call() throws Exception {
+        __db.beginTransaction();
+        try {
+          final Cursor _cursor = DBUtil.query(__db, _statement, true, null);
+          try {
+            final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+            final int _cursorIndexOfDate = CursorUtil.getColumnIndexOrThrow(_cursor, "date");
+            final int _cursorIndexOfTime = CursorUtil.getColumnIndexOrThrow(_cursor, "time");
+            final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
+            final int _cursorIndexOfTotalCalories = CursorUtil.getColumnIndexOrThrow(_cursor, "totalCalories");
+            final int _cursorIndexOfTotalCarbsG = CursorUtil.getColumnIndexOrThrow(_cursor, "totalCarbsG");
+            final int _cursorIndexOfTotalProteinG = CursorUtil.getColumnIndexOrThrow(_cursor, "totalProteinG");
+            final int _cursorIndexOfTotalFatG = CursorUtil.getColumnIndexOrThrow(_cursor, "totalFatG");
+            final int _cursorIndexOfAnalysisNarrative = CursorUtil.getColumnIndexOrThrow(_cursor, "analysisNarrative");
+            final int _cursorIndexOfPhotoPath = CursorUtil.getColumnIndexOrThrow(_cursor, "photoPath");
+            final int _cursorIndexOfOriginalInput = CursorUtil.getColumnIndexOrThrow(_cursor, "originalInput");
+            final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+            final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+            final LongSparseArray<ArrayList<FoodItemEntity>> _collectionItems = new LongSparseArray<ArrayList<FoodItemEntity>>();
+            while (_cursor.moveToNext()) {
+              final long _tmpKey;
+              _tmpKey = _cursor.getLong(_cursorIndexOfId);
+              if (!_collectionItems.containsKey(_tmpKey)) {
+                _collectionItems.put(_tmpKey, new ArrayList<FoodItemEntity>());
+              }
+            }
+            _cursor.moveToPosition(-1);
+            __fetchRelationshipfoodItemsAscomTrackyAppDataLocalEntityFoodItemEntity(_collectionItems);
+            final FoodEntryWithItems _result;
+            if (_cursor.moveToFirst()) {
+              final FoodEntryEntity _tmpEntry;
+              final long _tmpId;
+              _tmpId = _cursor.getLong(_cursorIndexOfId);
+              final String _tmpDate;
+              _tmpDate = _cursor.getString(_cursorIndexOfDate);
+              final String _tmpTime;
+              _tmpTime = _cursor.getString(_cursorIndexOfTime);
+              final long _tmpTimestamp;
+              _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
+              final float _tmpTotalCalories;
+              _tmpTotalCalories = _cursor.getFloat(_cursorIndexOfTotalCalories);
+              final float _tmpTotalCarbsG;
+              _tmpTotalCarbsG = _cursor.getFloat(_cursorIndexOfTotalCarbsG);
+              final float _tmpTotalProteinG;
+              _tmpTotalProteinG = _cursor.getFloat(_cursorIndexOfTotalProteinG);
+              final float _tmpTotalFatG;
+              _tmpTotalFatG = _cursor.getFloat(_cursorIndexOfTotalFatG);
+              final String _tmpAnalysisNarrative;
+              if (_cursor.isNull(_cursorIndexOfAnalysisNarrative)) {
+                _tmpAnalysisNarrative = null;
+              } else {
+                _tmpAnalysisNarrative = _cursor.getString(_cursorIndexOfAnalysisNarrative);
+              }
+              final String _tmpPhotoPath;
+              if (_cursor.isNull(_cursorIndexOfPhotoPath)) {
+                _tmpPhotoPath = null;
+              } else {
+                _tmpPhotoPath = _cursor.getString(_cursorIndexOfPhotoPath);
+              }
+              final String _tmpOriginalInput;
+              if (_cursor.isNull(_cursorIndexOfOriginalInput)) {
+                _tmpOriginalInput = null;
+              } else {
+                _tmpOriginalInput = _cursor.getString(_cursorIndexOfOriginalInput);
+              }
+              final long _tmpCreatedAt;
+              _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+              final long _tmpUpdatedAt;
+              _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+              _tmpEntry = new FoodEntryEntity(_tmpId,_tmpDate,_tmpTime,_tmpTimestamp,_tmpTotalCalories,_tmpTotalCarbsG,_tmpTotalProteinG,_tmpTotalFatG,_tmpAnalysisNarrative,_tmpPhotoPath,_tmpOriginalInput,_tmpCreatedAt,_tmpUpdatedAt);
+              final ArrayList<FoodItemEntity> _tmpItemsCollection;
+              final long _tmpKey_1;
+              _tmpKey_1 = _cursor.getLong(_cursorIndexOfId);
+              _tmpItemsCollection = _collectionItems.get(_tmpKey_1);
+              _result = new FoodEntryWithItems(_tmpEntry,_tmpItemsCollection);
+            } else {
+              _result = null;
+            }
+            __db.setTransactionSuccessful();
+            return _result;
+          } finally {
+            _cursor.close();
+            _statement.release();
+          }
+        } finally {
+          __db.endTransaction();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Object getEntryById(final long id,
       final Continuation<? super FoodEntryEntity> $completion) {
     final String _sql = "SELECT * FROM food_entries WHERE id = ?";
@@ -818,6 +1045,146 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
   }
 
   @Override
+  public Object getTotalCaloriesForDateOnce(final String date,
+      final Continuation<? super Float> $completion) {
+    final String _sql = "SELECT SUM(totalCalories) FROM food_entries WHERE date = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, date);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<Float>() {
+      @Override
+      @Nullable
+      public Float call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final Float _result;
+          if (_cursor.moveToFirst()) {
+            final Float _tmp;
+            if (_cursor.isNull(0)) {
+              _tmp = null;
+            } else {
+              _tmp = _cursor.getFloat(0);
+            }
+            _result = _tmp;
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object getFoodItemsForDateOnce(final String date,
+      final Continuation<? super List<FoodItemEntity>> $completion) {
+    final String _sql = "\n"
+            + "        SELECT fi.* FROM food_items fi\n"
+            + "        INNER JOIN food_entries fe ON fi.foodEntryId = fe.id\n"
+            + "        WHERE fe.date = ?\n"
+            + "    ";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, date);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<FoodItemEntity>>() {
+      @Override
+      @NonNull
+      public List<FoodItemEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfFoodEntryId = CursorUtil.getColumnIndexOrThrow(_cursor, "foodEntryId");
+          final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
+          final int _cursorIndexOfMatchedName = CursorUtil.getColumnIndexOrThrow(_cursor, "matchedName");
+          final int _cursorIndexOfQuantity = CursorUtil.getColumnIndexOrThrow(_cursor, "quantity");
+          final int _cursorIndexOfUnit = CursorUtil.getColumnIndexOrThrow(_cursor, "unit");
+          final int _cursorIndexOfCalories = CursorUtil.getColumnIndexOrThrow(_cursor, "calories");
+          final int _cursorIndexOfCarbsG = CursorUtil.getColumnIndexOrThrow(_cursor, "carbsG");
+          final int _cursorIndexOfProteinG = CursorUtil.getColumnIndexOrThrow(_cursor, "proteinG");
+          final int _cursorIndexOfFatG = CursorUtil.getColumnIndexOrThrow(_cursor, "fatG");
+          final int _cursorIndexOfSource = CursorUtil.getColumnIndexOrThrow(_cursor, "source");
+          final int _cursorIndexOfSourceId = CursorUtil.getColumnIndexOrThrow(_cursor, "sourceId");
+          final int _cursorIndexOfConfidence = CursorUtil.getColumnIndexOrThrow(_cursor, "confidence");
+          final int _cursorIndexOfDisplayOrder = CursorUtil.getColumnIndexOrThrow(_cursor, "displayOrder");
+          final int _cursorIndexOfCanonicalKey = CursorUtil.getColumnIndexOrThrow(_cursor, "canonicalKey");
+          final int _cursorIndexOfIsManualMacros = CursorUtil.getColumnIndexOrThrow(_cursor, "isManualMacros");
+          final int _cursorIndexOfAnalysisRevision = CursorUtil.getColumnIndexOrThrow(_cursor, "analysisRevision");
+          final int _cursorIndexOfPendingSuggestionJson = CursorUtil.getColumnIndexOrThrow(_cursor, "pendingSuggestionJson");
+          final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final FoodItemEntity _item;
+            final long _tmpId;
+            _tmpId = _cursor.getLong(_cursorIndexOfId);
+            final long _tmpFoodEntryId;
+            _tmpFoodEntryId = _cursor.getLong(_cursorIndexOfFoodEntryId);
+            final String _tmpName;
+            _tmpName = _cursor.getString(_cursorIndexOfName);
+            final String _tmpMatchedName;
+            if (_cursor.isNull(_cursorIndexOfMatchedName)) {
+              _tmpMatchedName = null;
+            } else {
+              _tmpMatchedName = _cursor.getString(_cursorIndexOfMatchedName);
+            }
+            final float _tmpQuantity;
+            _tmpQuantity = _cursor.getFloat(_cursorIndexOfQuantity);
+            final String _tmpUnit;
+            _tmpUnit = _cursor.getString(_cursorIndexOfUnit);
+            final float _tmpCalories;
+            _tmpCalories = _cursor.getFloat(_cursorIndexOfCalories);
+            final float _tmpCarbsG;
+            _tmpCarbsG = _cursor.getFloat(_cursorIndexOfCarbsG);
+            final float _tmpProteinG;
+            _tmpProteinG = _cursor.getFloat(_cursorIndexOfProteinG);
+            final float _tmpFatG;
+            _tmpFatG = _cursor.getFloat(_cursorIndexOfFatG);
+            final String _tmpSource;
+            _tmpSource = _cursor.getString(_cursorIndexOfSource);
+            final String _tmpSourceId;
+            if (_cursor.isNull(_cursorIndexOfSourceId)) {
+              _tmpSourceId = null;
+            } else {
+              _tmpSourceId = _cursor.getString(_cursorIndexOfSourceId);
+            }
+            final float _tmpConfidence;
+            _tmpConfidence = _cursor.getFloat(_cursorIndexOfConfidence);
+            final int _tmpDisplayOrder;
+            _tmpDisplayOrder = _cursor.getInt(_cursorIndexOfDisplayOrder);
+            final String _tmpCanonicalKey;
+            if (_cursor.isNull(_cursorIndexOfCanonicalKey)) {
+              _tmpCanonicalKey = null;
+            } else {
+              _tmpCanonicalKey = _cursor.getString(_cursorIndexOfCanonicalKey);
+            }
+            final boolean _tmpIsManualMacros;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsManualMacros);
+            _tmpIsManualMacros = _tmp != 0;
+            final long _tmpAnalysisRevision;
+            _tmpAnalysisRevision = _cursor.getLong(_cursorIndexOfAnalysisRevision);
+            final String _tmpPendingSuggestionJson;
+            if (_cursor.isNull(_cursorIndexOfPendingSuggestionJson)) {
+              _tmpPendingSuggestionJson = null;
+            } else {
+              _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
+            }
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Flow<MacroTotals> getMacroTotalsForDate(final String date) {
     final String _sql = "\n"
             + "        SELECT SUM(totalCarbsG) as carbs, SUM(totalProteinG) as protein, SUM(totalFatG) as fat\n"
@@ -998,6 +1365,9 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfConfidence = CursorUtil.getColumnIndexOrThrow(_cursor, "confidence");
           final int _cursorIndexOfDisplayOrder = CursorUtil.getColumnIndexOrThrow(_cursor, "displayOrder");
           final int _cursorIndexOfCanonicalKey = CursorUtil.getColumnIndexOrThrow(_cursor, "canonicalKey");
+          final int _cursorIndexOfIsManualMacros = CursorUtil.getColumnIndexOrThrow(_cursor, "isManualMacros");
+          final int _cursorIndexOfAnalysisRevision = CursorUtil.getColumnIndexOrThrow(_cursor, "analysisRevision");
+          final int _cursorIndexOfPendingSuggestionJson = CursorUtil.getColumnIndexOrThrow(_cursor, "pendingSuggestionJson");
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1043,7 +1413,19 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             } else {
               _tmpCanonicalKey = _cursor.getString(_cursorIndexOfCanonicalKey);
             }
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey);
+            final boolean _tmpIsManualMacros;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsManualMacros);
+            _tmpIsManualMacros = _tmp != 0;
+            final long _tmpAnalysisRevision;
+            _tmpAnalysisRevision = _cursor.getLong(_cursorIndexOfAnalysisRevision);
+            final String _tmpPendingSuggestionJson;
+            if (_cursor.isNull(_cursorIndexOfPendingSuggestionJson)) {
+              _tmpPendingSuggestionJson = null;
+            } else {
+              _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
+            }
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
             _result.add(_item);
           }
           return _result;
@@ -1088,6 +1470,9 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfConfidence = CursorUtil.getColumnIndexOrThrow(_cursor, "confidence");
           final int _cursorIndexOfDisplayOrder = CursorUtil.getColumnIndexOrThrow(_cursor, "displayOrder");
           final int _cursorIndexOfCanonicalKey = CursorUtil.getColumnIndexOrThrow(_cursor, "canonicalKey");
+          final int _cursorIndexOfIsManualMacros = CursorUtil.getColumnIndexOrThrow(_cursor, "isManualMacros");
+          final int _cursorIndexOfAnalysisRevision = CursorUtil.getColumnIndexOrThrow(_cursor, "analysisRevision");
+          final int _cursorIndexOfPendingSuggestionJson = CursorUtil.getColumnIndexOrThrow(_cursor, "pendingSuggestionJson");
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1133,7 +1518,19 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             } else {
               _tmpCanonicalKey = _cursor.getString(_cursorIndexOfCanonicalKey);
             }
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey);
+            final boolean _tmpIsManualMacros;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsManualMacros);
+            _tmpIsManualMacros = _tmp != 0;
+            final long _tmpAnalysisRevision;
+            _tmpAnalysisRevision = _cursor.getLong(_cursorIndexOfAnalysisRevision);
+            final String _tmpPendingSuggestionJson;
+            if (_cursor.isNull(_cursorIndexOfPendingSuggestionJson)) {
+              _tmpPendingSuggestionJson = null;
+            } else {
+              _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
+            }
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
             _result.add(_item);
           }
           return _result;
@@ -1151,7 +1548,8 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
     final String _sql = "\n"
             + "        SELECT DISTINCT \n"
             + "            id, foodEntryId, name, matchedName, quantity, unit, \n"
-            + "            calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder, canonicalKey\n"
+            + "            calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder, canonicalKey,\n"
+            + "            isManualMacros, analysisRevision, pendingSuggestionJson\n"
             + "        FROM food_items\n"
             + "        WHERE (name LIKE '%' || ? || '%' OR matchedName LIKE '%' || ? || '%')\n"
             + "          AND source != 'unresolved'\n"
@@ -1187,6 +1585,9 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfConfidence = 12;
           final int _cursorIndexOfDisplayOrder = 13;
           final int _cursorIndexOfCanonicalKey = 14;
+          final int _cursorIndexOfIsManualMacros = 15;
+          final int _cursorIndexOfAnalysisRevision = 16;
+          final int _cursorIndexOfPendingSuggestionJson = 17;
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1232,7 +1633,19 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             } else {
               _tmpCanonicalKey = _cursor.getString(_cursorIndexOfCanonicalKey);
             }
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey);
+            final boolean _tmpIsManualMacros;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsManualMacros);
+            _tmpIsManualMacros = _tmp != 0;
+            final long _tmpAnalysisRevision;
+            _tmpAnalysisRevision = _cursor.getLong(_cursorIndexOfAnalysisRevision);
+            final String _tmpPendingSuggestionJson;
+            if (_cursor.isNull(_cursorIndexOfPendingSuggestionJson)) {
+              _tmpPendingSuggestionJson = null;
+            } else {
+              _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
+            }
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
             _result.add(_item);
           }
           return _result;
@@ -1247,5 +1660,124 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
   @NonNull
   public static List<Class<?>> getRequiredConverters() {
     return Collections.emptyList();
+  }
+
+  private void __fetchRelationshipfoodItemsAscomTrackyAppDataLocalEntityFoodItemEntity(
+      @NonNull final LongSparseArray<ArrayList<FoodItemEntity>> _map) {
+    if (_map.isEmpty()) {
+      return;
+    }
+    if (_map.size() > RoomDatabase.MAX_BIND_PARAMETER_CNT) {
+      RelationUtil.recursiveFetchLongSparseArray(_map, true, (map) -> {
+        __fetchRelationshipfoodItemsAscomTrackyAppDataLocalEntityFoodItemEntity(map);
+        return Unit.INSTANCE;
+      });
+      return;
+    }
+    final StringBuilder _stringBuilder = StringUtil.newStringBuilder();
+    _stringBuilder.append("SELECT `id`,`foodEntryId`,`name`,`matchedName`,`quantity`,`unit`,`calories`,`carbsG`,`proteinG`,`fatG`,`source`,`sourceId`,`confidence`,`displayOrder`,`canonicalKey`,`isManualMacros`,`analysisRevision`,`pendingSuggestionJson` FROM `food_items` WHERE `foodEntryId` IN (");
+    final int _inputSize = _map.size();
+    StringUtil.appendPlaceholders(_stringBuilder, _inputSize);
+    _stringBuilder.append(")");
+    final String _sql = _stringBuilder.toString();
+    final int _argCount = 0 + _inputSize;
+    final RoomSQLiteQuery _stmt = RoomSQLiteQuery.acquire(_sql, _argCount);
+    int _argIndex = 1;
+    for (int i = 0; i < _map.size(); i++) {
+      final long _item = _map.keyAt(i);
+      _stmt.bindLong(_argIndex, _item);
+      _argIndex++;
+    }
+    final Cursor _cursor = DBUtil.query(__db, _stmt, false, null);
+    try {
+      final int _itemKeyIndex = CursorUtil.getColumnIndex(_cursor, "foodEntryId");
+      if (_itemKeyIndex == -1) {
+        return;
+      }
+      final int _cursorIndexOfId = 0;
+      final int _cursorIndexOfFoodEntryId = 1;
+      final int _cursorIndexOfName = 2;
+      final int _cursorIndexOfMatchedName = 3;
+      final int _cursorIndexOfQuantity = 4;
+      final int _cursorIndexOfUnit = 5;
+      final int _cursorIndexOfCalories = 6;
+      final int _cursorIndexOfCarbsG = 7;
+      final int _cursorIndexOfProteinG = 8;
+      final int _cursorIndexOfFatG = 9;
+      final int _cursorIndexOfSource = 10;
+      final int _cursorIndexOfSourceId = 11;
+      final int _cursorIndexOfConfidence = 12;
+      final int _cursorIndexOfDisplayOrder = 13;
+      final int _cursorIndexOfCanonicalKey = 14;
+      final int _cursorIndexOfIsManualMacros = 15;
+      final int _cursorIndexOfAnalysisRevision = 16;
+      final int _cursorIndexOfPendingSuggestionJson = 17;
+      while (_cursor.moveToNext()) {
+        final long _tmpKey;
+        _tmpKey = _cursor.getLong(_itemKeyIndex);
+        final ArrayList<FoodItemEntity> _tmpRelation = _map.get(_tmpKey);
+        if (_tmpRelation != null) {
+          final FoodItemEntity _item_1;
+          final long _tmpId;
+          _tmpId = _cursor.getLong(_cursorIndexOfId);
+          final long _tmpFoodEntryId;
+          _tmpFoodEntryId = _cursor.getLong(_cursorIndexOfFoodEntryId);
+          final String _tmpName;
+          _tmpName = _cursor.getString(_cursorIndexOfName);
+          final String _tmpMatchedName;
+          if (_cursor.isNull(_cursorIndexOfMatchedName)) {
+            _tmpMatchedName = null;
+          } else {
+            _tmpMatchedName = _cursor.getString(_cursorIndexOfMatchedName);
+          }
+          final float _tmpQuantity;
+          _tmpQuantity = _cursor.getFloat(_cursorIndexOfQuantity);
+          final String _tmpUnit;
+          _tmpUnit = _cursor.getString(_cursorIndexOfUnit);
+          final float _tmpCalories;
+          _tmpCalories = _cursor.getFloat(_cursorIndexOfCalories);
+          final float _tmpCarbsG;
+          _tmpCarbsG = _cursor.getFloat(_cursorIndexOfCarbsG);
+          final float _tmpProteinG;
+          _tmpProteinG = _cursor.getFloat(_cursorIndexOfProteinG);
+          final float _tmpFatG;
+          _tmpFatG = _cursor.getFloat(_cursorIndexOfFatG);
+          final String _tmpSource;
+          _tmpSource = _cursor.getString(_cursorIndexOfSource);
+          final String _tmpSourceId;
+          if (_cursor.isNull(_cursorIndexOfSourceId)) {
+            _tmpSourceId = null;
+          } else {
+            _tmpSourceId = _cursor.getString(_cursorIndexOfSourceId);
+          }
+          final float _tmpConfidence;
+          _tmpConfidence = _cursor.getFloat(_cursorIndexOfConfidence);
+          final int _tmpDisplayOrder;
+          _tmpDisplayOrder = _cursor.getInt(_cursorIndexOfDisplayOrder);
+          final String _tmpCanonicalKey;
+          if (_cursor.isNull(_cursorIndexOfCanonicalKey)) {
+            _tmpCanonicalKey = null;
+          } else {
+            _tmpCanonicalKey = _cursor.getString(_cursorIndexOfCanonicalKey);
+          }
+          final boolean _tmpIsManualMacros;
+          final int _tmp;
+          _tmp = _cursor.getInt(_cursorIndexOfIsManualMacros);
+          _tmpIsManualMacros = _tmp != 0;
+          final long _tmpAnalysisRevision;
+          _tmpAnalysisRevision = _cursor.getLong(_cursorIndexOfAnalysisRevision);
+          final String _tmpPendingSuggestionJson;
+          if (_cursor.isNull(_cursorIndexOfPendingSuggestionJson)) {
+            _tmpPendingSuggestionJson = null;
+          } else {
+            _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
+          }
+          _item_1 = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
+          _tmpRelation.add(_item_1);
+        }
+      }
+    } finally {
+      _cursor.close();
+    }
   }
 }

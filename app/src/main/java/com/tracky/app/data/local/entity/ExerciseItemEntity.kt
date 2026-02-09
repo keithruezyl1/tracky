@@ -28,5 +28,20 @@ data class ExerciseItemEntity(
     val intensity: String?,    // Store as string from enum
     val source: String,        // Provenance source
     val confidence: Float,     // Provenance confidence
-    val displayOrder: Int
+    val displayOrder: Int,
+
+    /**
+     * Whether values were manually edited
+     */
+    val isManual: Boolean = false,
+
+    /**
+     * Analysis revision number
+     */
+    val analysisRevision: Long = 0,
+
+    /**
+     * Pending suggestion as JSON string
+     */
+    val pendingSuggestionJson: String? = null
 )

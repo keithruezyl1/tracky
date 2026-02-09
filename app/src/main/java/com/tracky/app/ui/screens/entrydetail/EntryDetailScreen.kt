@@ -57,6 +57,12 @@ import com.tracky.app.ui.components.TrackyFullScreenLoading
 import com.tracky.app.ui.components.TrackyInfoCard
 import com.tracky.app.ui.components.TrackySectionTitle
 import com.tracky.app.ui.components.TrackyTopBarWithBack
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import com.tracky.app.ui.components.TrackyChip
+import com.tracky.app.ui.components.TrackyBottomSheet
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
 
@@ -67,6 +73,7 @@ fun EntryDetailScreen(
     entryType: String,
     viewModel: EntryDetailViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
+    onReanalyze: (String, Long, String) -> Unit,
     onEntryDeleted: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -74,6 +81,10 @@ fun EntryDetailScreen(
     var showActionsSheet by remember { mutableStateOf(false) }
     var showDateTimeSheet by remember { mutableStateOf(false) }
     var showAddItemSheet by remember { mutableStateOf(false) }
+
+    // Suggestion Review State
+    var foodSuggestionToReview by remember { mutableStateOf<FoodItem?>(null) }
+    var exerciseSuggestionToReview by remember { mutableStateOf<ExerciseItem?>(null) }
 
     // Navigate back when entry is deleted
     LaunchedEffect(uiState.entryDeleted) {
@@ -163,17 +174,52 @@ fun EntryDetailScreen(
                 when {
                     uiState.foodEntry != null -> FoodEntryDetail(
                         entry = uiState.foodEntry!!,
-                        onItemDelete = viewModel::deleteFoodItem
+                        onItemDelete = viewModel::deleteFoodItem,
+                        onReviewClick = { foodSuggestionToReview = it }
                     )
                     uiState.exerciseEntry != null -> ExerciseEntryDetail(
                         entry = uiState.exerciseEntry!!,
-                        onItemDelete = viewModel::deleteExerciseItem
+                        onItemDelete = viewModel::deleteExerciseItem,
+                        onReviewClick = { exerciseSuggestionToReview = it }
                     )
                 }
 
                 Spacer(modifier = Modifier.height(TrackyTokens.Spacing.L))
             }
         }
+    }
+    
+    // Review Suggestions Sheets
+    if (foodSuggestionToReview != null) {
+        ReviewSuggestionDialog(
+            originalFood = foodSuggestionToReview,
+            suggestionFood = foodSuggestionToReview?.pendingSuggestion,
+            onDismiss = { foodSuggestionToReview = null },
+            onApply = {
+                foodSuggestionToReview?.let { viewModel.applyFoodSuggestion(it) }
+                foodSuggestionToReview = null
+            },
+            onDiscard = {
+                foodSuggestionToReview?.let { viewModel.discardFoodSuggestion(it) }
+                foodSuggestionToReview = null
+            }
+        )
+    }
+    
+    if (exerciseSuggestionToReview != null) {
+        ReviewSuggestionDialog(
+            originalExercise = exerciseSuggestionToReview,
+            suggestionExercise = exerciseSuggestionToReview?.pendingSuggestion,
+            onDismiss = { exerciseSuggestionToReview = null },
+            onApply = {
+                 exerciseSuggestionToReview?.let { viewModel.applyExerciseSuggestion(it) }
+                 exerciseSuggestionToReview = null
+            },
+            onDiscard = {
+                 exerciseSuggestionToReview?.let { viewModel.discardExerciseSuggestion(it) }
+                 exerciseSuggestionToReview = null
+            }
+        )
     }
 
     // Actions sheet
@@ -184,7 +230,22 @@ fun EntryDetailScreen(
                  showActionsSheet = false
                  showEditSheet = true 
             },
-
+            onReanalyze = {
+                showActionsSheet = false
+                val query = if (entryType == "food") {
+                    uiState.foodEntry?.let { entry ->
+                        entry.originalInput?.takeIf { it.isNotBlank() }
+                            ?: entry.items.joinToString(", ") { "${it.quantity} ${it.unit} ${it.name}" }
+                    }
+                } else {
+                    uiState.exerciseEntry?.let { entry ->
+                        entry.originalInput?.takeIf { it.isNotBlank() }
+                            ?: entry.items.joinToString(", ") { "${it.activityName} ${it.durationMinutes} min" }
+                    }
+                }
+                
+                query?.let { onReanalyze(it, entryId, entryType) }
+            },
             onChangeDateTime = {
                  showActionsSheet = false
                  showDateTimeSheet = true 
@@ -258,7 +319,8 @@ fun EntryDetailScreen(
 @Composable
 private fun FoodEntryDetail(
     entry: FoodEntry,
-    onItemDelete: (FoodItem) -> Unit
+    onItemDelete: (FoodItem) -> Unit,
+    onReviewClick: (FoodItem) -> Unit
 ) {
     // Summary card
     TrackyCard {
@@ -312,7 +374,7 @@ private fun FoodEntryDetail(
 
     entry.items.forEach { item ->
         SwipeableRow(onDelete = { onItemDelete(item) }) {
-            FoodItemRow(item = item)
+            FoodItemRow(item = item, onReviewClick = onReviewClick)
         }
     }
 
@@ -333,36 +395,10 @@ private fun FoodEntryDetail(
 }
 
 @Composable
-private fun FoodItemRow(item: FoodItem) {
-    TrackyCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                TrackyBodyText(text = item.name)
-                TrackyBodySmall(
-                    text = "${item.quantity} ${item.unit}",
-                    color = TrackyColors.TextSecondary
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                TrackyBodyText(text = "${item.calories} kcal")
-                TrackyBodySmall(
-                    text = "C: ${item.carbsG.toInt()}g P: ${item.proteinG.toInt()}g F: ${item.fatG.toInt()}g",
-                    color = TrackyColors.TextTertiary
-                )
-            }
-        }
-
-
-    }
-}
-
-@Composable
 private fun ExerciseEntryDetail(
     entry: ExerciseEntry,
-    onItemDelete: (ExerciseItem) -> Unit
+    onItemDelete: (ExerciseItem) -> Unit,
+    onReviewClick: (ExerciseItem) -> Unit
 ) {
     // Summary card
     TrackyCard {
@@ -398,7 +434,7 @@ private fun ExerciseEntryDetail(
 
     entry.items.forEach { item ->
         SwipeableRow(onDelete = { onItemDelete(item) }) {
-            ExerciseItemRow(item = item)
+            ExerciseItemRow(item = item, onReviewClick = onReviewClick)
         }
     }
 
@@ -419,47 +455,196 @@ private fun ExerciseEntryDetail(
 }
 
 @Composable
-private fun ExerciseItemRow(item: ExerciseItem) {
-    TrackyCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                TrackyBodyText(text = item.activityName)
-                item.intensity?.let { intensity ->
-                   TrackyBodySmall(
-                       text = intensity.value.replaceFirstChar { it.uppercase() },
-                       color = TrackyColors.TextSecondary
-                   )
+private fun FoodItemRow(
+    item: FoodItem,
+    onReviewClick: (FoodItem) -> Unit
+) {
+    TrackyCard(
+        modifier = Modifier.clickable { 
+            if (item.pendingSuggestion != null) onReviewClick(item)
+        }
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    TrackyBodyText(text = item.name)
+                    TrackyBodySmall(
+                        text = "${item.quantity} ${item.unit}",
+                        color = TrackyColors.TextSecondary
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    TrackyBodyText(text = "${item.calories} kcal")
+                    TrackyBodySmall(
+                        text = "C: ${item.carbsG.toInt()}g P: ${item.proteinG.toInt()}g F: ${item.fatG.toInt()}g",
+                        color = TrackyColors.TextTertiary
+                    )
                 }
             }
-            Column(horizontalAlignment = Alignment.End) {
-                TrackyBodyText(text = "${item.caloriesBurned} kcal")
-                TrackyBodySmall(
-                    text = "${item.durationMinutes} min",
-                    color = TrackyColors.TextTertiary
-                )
+            
+            if (item.pendingSuggestion != null) {
+                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TrackyChip(
+                        label = "Review Update",
+                        selected = true,
+                        onClick = { onReviewClick(item) },
+                        compact = true,
+                        tint = TrackyTokens.Colors.BrandPrimary
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = TrackyTokens.Spacing.XXS),
-        horizontalArrangement = Arrangement.SpaceBetween
+private fun ExerciseItemRow(
+    item: ExerciseItem,
+    onReviewClick: (ExerciseItem) -> Unit
+) {
+    TrackyCard(
+        modifier = Modifier.clickable { 
+            if (item.pendingSuggestion != null) onReviewClick(item)
+        }
     ) {
-        TrackyBodySmall(
-            text = label,
-            color = TrackyColors.TextTertiary
-        )
-        TrackyBodySmall(text = value)
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    TrackyBodyText(text = item.activityName)
+                    item.intensity?.let { intensity ->
+                        TrackyBodySmall(
+                            text = intensity.value.replaceFirstChar { it.uppercase() },
+                            color = TrackyColors.TextSecondary
+                        )
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    TrackyBodyText(text = "${item.caloriesBurned} kcal")
+                    TrackyBodySmall(
+                        text = "${item.durationMinutes} min",
+                        color = TrackyColors.TextTertiary
+                    )
+                }
+            }
+             if (item.pendingSuggestion != null) {
+                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TrackyChip(
+                        label = "Review Update",
+                        selected = true,
+                        onClick = { onReviewClick(item) },
+                        compact = true,
+                        tint = TrackyTokens.Colors.BrandPrimary
+                    )
+                }
+            }
+        }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReviewSuggestionDialog(
+    originalFood: FoodItem? = null,
+    suggestionFood: FoodItem? = null,
+    originalExercise: ExerciseItem? = null,
+    suggestionExercise: ExerciseItem? = null,
+    onDismiss: () -> Unit,
+    onApply: () -> Unit,
+    onDiscard: () -> Unit
+) {
+    TrackyBottomSheet(
+        onDismissRequest = onDismiss,
+        title = "Review Update"
+    ) {
+        Column(
+            modifier = Modifier.verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.M)
+        ) {
+            TrackyBodyText(text = "The AI has found a more accurate match based on your description. Would you like to update? This will replace your manual edits.")
+            
+            TrackyCard {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TrackyBodySmall(text = "Current", color = TrackyTokens.Colors.TextSecondary)
+                    TrackyBodySmall(text = "New", color = TrackyTokens.Colors.BrandPrimary)
+                }
+                TrackyDivider(modifier = Modifier.padding(vertical = TrackyTokens.Spacing.XS))
+                
+                if (originalFood != null && suggestionFood != null) {
+                    DiffRow("Calories", "${originalFood.calories} kcal", "${suggestionFood.calories} kcal")
+                    DiffRow("Carbs", "${originalFood.carbsG}g", "${suggestionFood.carbsG}g")
+                    DiffRow("Protein", "${originalFood.proteinG}g", "${suggestionFood.proteinG}g")
+                    DiffRow("Fat", "${originalFood.fatG}g", "${suggestionFood.fatG}g")
+                }
+                if (originalExercise != null && suggestionExercise != null) {
+                     DiffRow("Calories", "${originalExercise.caloriesBurned} kcal", "${suggestionExercise.caloriesBurned} kcal")
+                     if (originalExercise.metValue != suggestionExercise.metValue) {
+                         DiffRow("MET", "${originalExercise.metValue}", "${suggestionExercise.metValue}")
+                     }
+                }
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.S)
+            ) {
+                 Button(
+                    onClick = onDiscard,
+                    modifier = Modifier.weight(1f),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = TrackyTokens.Colors.Surface,
+                        contentColor = TrackyTokens.Colors.Error
+                    )
+                ) {
+                    Text("Discard")
+                }
+                Button(
+                    onClick = onApply,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Update")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DiffRow(label: String, oldVal: String, newVal: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        TrackyBodyText(text = label, modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier.weight(2f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+             TrackyBodyText(text = oldVal, color = TrackyTokens.Colors.TextSecondary)
+             Icon(
+                 imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward,
+                 contentDescription = null,
+                 modifier = Modifier.size(16.dp),
+                 tint = TrackyTokens.Colors.TextTertiary
+             )
+             TrackyBodyText(text = newVal, color = TrackyTokens.Colors.BrandPrimary)
+        }
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -469,7 +654,7 @@ fun AddItemSheet(
     onAddFood: (name: String, quantity: Float, unit: String) -> Unit,
     onAddExercise: (activity: String, duration: Int) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState()
+     val sheetState = rememberModalBottomSheetState()
     var name by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("") }
@@ -548,5 +733,21 @@ fun AddItemSheet(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = TrackyTokens.Spacing.XXS),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        TrackyBodySmall(
+            text = label,
+            color = TrackyColors.TextTertiary
+        )
+        TrackyBodySmall(text = value)
     }
 }

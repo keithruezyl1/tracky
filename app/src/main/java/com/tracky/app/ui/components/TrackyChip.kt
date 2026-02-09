@@ -146,8 +146,8 @@ fun TrackyDayChip(
 
     val containerColor by animateColorAsState(
         targetValue = when {
-            selected -> TrackyColors.BrandTint
             status == DayStatus.FAILURE -> TrackyColors.Error.copy(alpha = 0.1f)
+            selected -> TrackyColors.BrandTint
             status == DayStatus.SUCCESS -> TrackyColors.Success.copy(alpha = 0.1f)
             status == DayStatus.HAS_ENTRY -> TrackyColors.Warning.copy(alpha = 0.1f)
             else -> Color.Transparent
@@ -158,9 +158,9 @@ fun TrackyDayChip(
 
     val textColor by animateColorAsState(
         targetValue = when {
+            status == DayStatus.FAILURE -> TrackyColors.Error
             selected -> TrackyColors.BrandPrimary
             isToday -> TrackyColors.BrandPrimary
-            status == DayStatus.FAILURE -> TrackyColors.Error
             status == DayStatus.SUCCESS -> TrackyColors.Success
             status == DayStatus.HAS_ENTRY -> TrackyColors.Warning
             else -> TrackyColors.TextSecondary
@@ -171,8 +171,9 @@ fun TrackyDayChip(
 
     val borderColor by animateColorAsState(
         targetValue = when {
-            selected -> TrackyColors.BrandPrimary.copy(alpha = 0.3f)
             status == DayStatus.FAILURE -> TrackyColors.Error.copy(alpha = 0.3f)
+            isToday -> TrackyColors.BrandPrimary // Blue outline for today
+            selected -> TrackyColors.BrandPrimary.copy(alpha = 0.3f)
             status == DayStatus.SUCCESS -> TrackyColors.Success.copy(alpha = 0.3f)
             status == DayStatus.HAS_ENTRY -> TrackyColors.Warning.copy(alpha = 0.3f)
             else -> Color.Transparent

@@ -5,17 +5,16 @@ import com.tracky.app.ui.utils.toSmartString
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +25,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.ui.draw.blur
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
@@ -39,22 +43,23 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.MonitorWeight
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Scale
-import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DismissDirection
-import androidx.compose.material3.DismissValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,10 +73,12 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -120,6 +127,8 @@ import com.tracky.app.ui.components.TrackyScreenTitle
 import com.tracky.app.ui.components.TrackySheetActions
 import com.tracky.app.ui.components.SwipeableRow
 import com.tracky.app.ui.components.SuccessOverlay
+import com.tracky.app.ui.components.StreakIndicator
+import com.tracky.app.ui.components.StreakModalContent
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
 import com.tracky.app.ui.theme.TrackyTypography
@@ -128,10 +137,17 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.plus
+import kotlinx.datetime.minus
+import kotlinx.datetime.daysUntil
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.format.TextStyle
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+import androidx.compose.foundation.ExperimentalFoundationApi
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
@@ -140,12 +156,18 @@ fun HomeScreen(
     onNavigateToSavedEntries: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToEntryDetail: (Long, String) -> Unit,
-    onNavigateToSummary: () -> Unit
+    onNavigateToSummary: () -> Unit,
+    reanalyzeQuery: String? = null,
+    reanalyzeId: Long? = null,
+    reanalyzeType: String? = null,
+    onReanalyzeConsumed: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val draftState by viewModel.draftState.collectAsState()
+    val weekDraftStates by viewModel.weekDraftStates.collectAsState()
     val chatMessages by viewModel.chatMessages.collectAsState()
+    val weekChatMessages by viewModel.weekChatMessages.collectAsState()
     val weekSummaries by viewModel.weekSummaries.collectAsState()
     val weekDates by viewModel.weekDates.collectAsState()
     val currentGoal by viewModel.currentGoal.collectAsState()
@@ -179,6 +201,14 @@ fun HomeScreen(
         }
         if (draftState is DraftState.FoodDraft || draftState is DraftState.ExerciseDraft) {
             viewModel.onDraftAppeared()
+        }
+    }
+
+    // Handle re-analysis request
+    LaunchedEffect(reanalyzeQuery, reanalyzeId, reanalyzeType) {
+        if (reanalyzeQuery != null) {
+            viewModel.logAutoFromText(reanalyzeQuery, reanalyzeId, reanalyzeType)
+            onReanalyzeConsumed()
         }
     }
 
@@ -242,6 +272,11 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(TrackyColors.Background)
+                    .then(
+                        if (uiState.showSidebar && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                            Modifier.blur(8.dp)
+                        else Modifier
+                    )
                     .statusBarsPadding()
             ) {
                 // Header with dynamic date title
@@ -282,21 +317,18 @@ fun HomeScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    Row {
-                        IconButton(onClick = onNavigateToWeight) {
-                            Icon(
-                                Icons.Outlined.MonitorWeight,
-                                contentDescription = "Weight Tracker",
-                                tint = TrackyColors.TextSecondary
-                            )
-                        }
-                        IconButton(onClick = onNavigateToSettings) {
-                            Icon(
-                                Icons.Outlined.Settings,
-                                contentDescription = "Settings",
-                                tint = TrackyColors.TextSecondary
-                            )
-                        }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XS)
+                    ) {
+                        StreakIndicator(
+                            streakInfo = uiState.streakInfo,
+                            onClick = viewModel::showStreakModal,
+                            shouldAnimate = uiState.shouldAnimateStreak,
+                            onAnimationComplete = viewModel::onStreakAnimationComplete
+                        )
+
+                        Spacer(modifier = Modifier.size(48.dp))
                     }
                 }
 
@@ -329,7 +361,7 @@ fun HomeScreen(
                         } ?: DayStatus.NONE
 
                         TrackyDayChip(
-                            dayLetter = date.dayOfWeek.name.take(1),
+                            dayLetter = if (date.dayOfWeek.name == "THURSDAY") "TH" else date.dayOfWeek.name.take(1),
                             dateNumber = date.dayOfMonth.toString(),
                             selected = isSelected,
                             isToday = isToday,
@@ -341,224 +373,237 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
 
-                // Track swipe for day navigation
-                var swipeOffset by remember { mutableStateOf(0f) }
-                val swipeThreshold = 100f
+                // Fixed page count for a stable pager (approx 54 years of past history)
+                // initialPageBase corresponds to 'today'. We add 1 to make it the last page.
+                val totalPages = 40_000
+                val initialPageBase = 20_000
+                
+                // Stable offset calculation, capped at today
+                val initialOffset = remember { minOf(0, today.daysUntil(selectedDate)) }
+                val pagerState = rememberPagerState(
+                    initialPage = initialPageBase + initialOffset,
+                    pageCount = { initialPageBase + 1 }
+                )
 
-                // Main content with swipe gesture for day navigation
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .pointerInput(Unit) {
-                            detectHorizontalDragGestures(
-                                onDragEnd = {
-                                    if (swipeOffset > swipeThreshold) {
-                                        // Swipe right -> previous day
-                                        if (uiState.hapticsEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        viewModel.selectPreviousDay()
-                                    } else if (swipeOffset < -swipeThreshold) {
-                                        // Swipe left -> next day
-                                        if (uiState.hapticsEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        viewModel.selectNextDay()
-                                    }
-                                    swipeOffset = 0f
-                                },
-                                onHorizontalDrag = { _, dragAmount ->
-                                    swipeOffset += dragAmount
+                // 1. Sync: External Date Change (Calendar, Button) -> Pager Scroll
+                LaunchedEffect(selectedDate) {
+                    val daysDiff = today.daysUntil(selectedDate)
+                    val targetPage = initialPageBase + daysDiff
+                    if (pagerState.currentPage != targetPage && !pagerState.isScrollInProgress) {
+                        pagerState.animateScrollToPage(targetPage)
+                    }
+                }
+
+                // 2. Sync: Pager Swipe (Real-time) -> Update Day List Indicator
+                LaunchedEffect(pagerState) {
+                    snapshotFlow { pagerState.currentPage }
+                        .distinctUntilChanged()
+                        .collect { page ->
+                            if (pagerState.isScrollInProgress) {
+                                val pageDate = today.plus(page - initialPageBase, DateTimeUnit.DAY)
+                                // Just update the selected indicator, don't shift the window yet
+                                viewModel.selectDate(pageDate)
+                            }
+                        }
+                }
+
+                // 3. Sync: Pager Settle -> Handle Window Boundary Crossing
+                LaunchedEffect(pagerState) {
+                    snapshotFlow { pagerState.settledPage }
+                        .distinctUntilChanged()
+                        .collect { page ->
+                            val pageDate = today.plus(page - initialPageBase, DateTimeUnit.DAY)
+                            val currentWeekDates = viewModel.weekDates.value
+                            
+                            // Check if the settled date is outside the current visual strip
+                            if (pageDate !in currentWeekDates) {
+                                if (pageDate < currentWeekDates.first()) {
+                                    viewModel.selectPreviousDay()
+                                } else if (pageDate > currentWeekDates.last()) {
+                                    viewModel.selectNextDay()
+                                } else {
+                                    // Extreme jump (e.g. from calendar picker far away)
+                                    viewModel.selectDateFromCalendar(pageDate)
                                 }
-                            )
+                            }
                         }
-                ) {
+                }
 
-                    // Calories card - daily goal progress
-                    item {
-                        val dayGoal = uiState.currentSummary?.goal
-                        Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
-                            CaloriesCard(
-                                foodCalories = uiState.currentSummary?.foodCalories ?: 0f,
-                                exerciseCalories = uiState.currentSummary?.exerciseCalories ?: 0f,
-                                goalCalories = dayGoal?.calorieGoalKcal ?: currentGoal?.calorieGoalKcal ?: 2000f,
-                                onEditGoals = onNavigateToGoals
-                            )
-                        }
-                    }
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.weight(1f)
+                ) { page ->
+                    val date = today.plus(page - initialPageBase, DateTimeUnit.DAY)
+                    val summary = weekSummaries[date]
+                    val dateChatMessages = weekChatMessages[date] ?: emptyList()
+                    val dateDraftState = weekDraftStates[date] ?: DraftState.Idle
 
-                    // Macros card - use currentGoal as fallback when day-specific goal is null
-                    item {
-                        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-                        val dayGoal = uiState.currentSummary?.goal
-                        Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
-                            MacrosCard(
-                                carbsConsumed = uiState.currentSummary?.carbsConsumedG ?: 0f,
-                                carbsTarget = dayGoal?.carbsTargetG ?: currentGoal?.carbsTargetG ?: 0f,
-                                proteinConsumed = uiState.currentSummary?.proteinConsumedG ?: 0f,
-                                proteinTarget = dayGoal?.proteinTargetG ?: currentGoal?.proteinTargetG ?: 0f,
-                                fatConsumed = uiState.currentSummary?.fatConsumedG ?: 0f,
-                                fatTarget = dayGoal?.fatTargetG ?: currentGoal?.fatTargetG ?: 0f
-                            )
-                        }
-                    }
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = TrackyTokens.Spacing.XXXL)
+                    ) {
+                        item(key = date.toString()) {
+                            val dayGoal = summary?.goal
+                            val totalFoodCals = summary?.foodCalories ?: 0f
+                            val totalExCals = summary?.exerciseCalories ?: 0f
+                            val goalCals = dayGoal?.calorieGoalKcal ?: currentGoal?.calorieGoalKcal ?: 2000f
 
-                    // Chat thread
-                    val threadVisibleMessages = chatMessages.filter { it.role != MessageRole.USER }
+                            Column {
+                                // 1. Summary Cards
+                                Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                    CaloriesCard(
+                                        foodCalories = totalFoodCals,
+                                        exerciseCalories = totalExCals,
+                                        goalCalories = goalCals,
+                                        onEditGoals = onNavigateToGoals
+                                    )
+                                }
 
-                    if (threadVisibleMessages.isNotEmpty()) {
-                        items(threadVisibleMessages, key = { it.id }) { message ->
-                            Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
-                                SwipeableChatMessageRow(
-                                    message = message,
-                                    onDelete = { viewModel.deleteChatMessage(message.id) },
-                                    onClick = {
-                                        // Only allow editing system confirmed messages with linked food entry
-                                        if (message.messageType == ChatMessageType.SYSTEM_CONFIRMED &&
-                                            message.linkedFoodEntryId != null) {
-                                            editingMessage = message
-                                            editText = message.content ?: ""
+                                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+
+                                Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                    MacrosCard(
+                                        carbsConsumed = summary?.carbsConsumedG ?: 0f,
+                                        carbsTarget = dayGoal?.carbsTargetG ?: currentGoal?.carbsTargetG ?: 0f,
+                                        proteinConsumed = summary?.proteinConsumedG ?: 0f,
+                                        proteinTarget = dayGoal?.proteinTargetG ?: currentGoal?.proteinTargetG ?: 0f,
+                                        fatConsumed = summary?.fatConsumedG ?: 0f,
+                                        fatTarget = dayGoal?.fatTargetG ?: currentGoal?.fatTargetG ?: 0f
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+
+                                // 2. Chat Thread for this date
+                                val threadVisibleMessages = dateChatMessages.filter { it.role != MessageRole.USER }
+                                threadVisibleMessages.forEach { message ->
+                                    Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                        SwipeableChatMessageRow(
+                                            message = message,
+                                            onDelete = { viewModel.deleteChatMessage(message.id) },
+                                            onClick = {
+                                                if (message.messageType == ChatMessageType.SYSTEM_CONFIRMED &&
+                                                    message.linkedFoodEntryId != null) {
+                                                    editingMessage = message
+                                                    editText = message.content ?: ""
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+
+                                // 3. Drafting State (Calculating...)
+                                if (dateDraftState is DraftState.Drafting) {
+                                    Column {
+                                        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+                                        Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                            TrackyDraftingState()
                                         }
                                     }
-                                )
-                            }
-                        }
-                    }
-
-                    // Draft card (if drafting)
-                    item {
-                        AnimatedVisibility(
-                            visible = draftState is DraftState.Drafting,
-                            enter = fadeIn(
-                                tween(200, easing = FastOutSlowInEasing)
-                            ) + slideInVertically(
-                                tween(200, easing = FastOutSlowInEasing)
-                            ) + scaleIn(
-                                tween(200, easing = FastOutSlowInEasing),
-                                initialScale = 0.92f
-                            ),
-                            exit = fadeOut() + slideOutVertically()
-                        ) {
-                            Column {
-                                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-                                Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
-                                    TrackyDraftingState()
                                 }
-                            }
-                        }
-                    }
 
-                    // Draft confirmation card
-                    item {
-                        when (val state = draftState) {
-                            is DraftState.FoodDraft -> {
-                                Column {
-                                    Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-                                    Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
-                                        FoodDraftCard(
-                                            draft = state.data,
-                                            animate = uiState.shouldAnimateDraft,
-                                            onConfirm = { viewModel.confirmFoodDraft(state.data) },
-                                            onCancel = viewModel::cancelDraft,
-                                            onItemClick = { index -> editingFoodIndex = index }
+                                // 4. Draft Confirmation Card
+                                when (dateDraftState) {
+                                    is DraftState.FoodDraft -> {
+                                        Column {
+                                            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+                                            Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                                FoodDraftCard(
+                                                    draft = dateDraftState.data,
+                                                    animate = uiState.shouldAnimateDraft,
+                                                    onConfirm = { viewModel.confirmFoodDraft(dateDraftState.data) },
+                                                    onCancel = viewModel::cancelDraft,
+                                                    onItemClick = { index -> editingFoodIndex = index }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    is DraftState.ExerciseDraft -> {
+                                        Column {
+                                            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+                                            Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                                ExerciseDraftCard(
+                                                    draft = dateDraftState.data,
+                                                    animate = uiState.shouldAnimateDraft,
+                                                    onConfirm = { viewModel.confirmExerciseDraft(dateDraftState.data) },
+                                                    onCancel = viewModel::cancelDraft,
+                                                    onItemClick = { index -> editingExerciseIndex = index }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    else -> {}
+                                }
+
+                                // 5. Food & Exercise Entries
+                                summary?.foodEntries?.let { entries ->
+                                    if (entries.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+                                        Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                            TrackyCardTitle(text = "Food")
+                                        }
+                                        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
+                                        entries.forEach { entry ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(horizontal = TrackyTokens.Spacing.M)
+                                                    .padding(bottom = TrackyTokens.Spacing.DenseListSpacing)
+                                            ) {
+                                                SwipeableRow(
+                                                    onDelete = { viewModel.deleteFoodEntry(entry.id) }
+                                                ) {
+                                                    FoodEntryRow(entry = entry, onClick = { onNavigateToEntryDetail(entry.id, "food") })
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                summary?.exerciseEntries?.let { entries ->
+                                    if (entries.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+                                        Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
+                                            TrackyCardTitle(text = "Exercise")
+                                        }
+                                        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
+                                        entries.forEach { entry ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(horizontal = TrackyTokens.Spacing.M)
+                                                    .padding(bottom = TrackyTokens.Spacing.DenseListSpacing)
+                                            ) {
+                                                SwipeableRow(
+                                                    onDelete = { viewModel.deleteExerciseEntry(entry.id) }
+                                                ) {
+                                                    ExerciseEntryRow(entry = entry, onClick = { onNavigateToEntryDetail(entry.id, "exercise") })
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 6. Empty State
+                                val hasEntries = (summary?.foodEntries?.isNotEmpty() == true) ||
+                                                (summary?.exerciseEntries?.isNotEmpty() == true)
+                                val isDrafting = dateDraftState is DraftState.Drafting ||
+                                                dateDraftState is DraftState.FoodDraft ||
+                                                dateDraftState is DraftState.ExerciseDraft
+                                
+                                if (!hasEntries && !isDrafting && threadVisibleMessages.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = TrackyTokens.Spacing.XL),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        TrackyBodySmall(
+                                            text = "No logs for this day :(",
+                                            color = TrackyColors.TextTertiary
                                         )
                                     }
                                 }
                             }
-                            is DraftState.ExerciseDraft -> {
-                                Column {
-                                    Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-                                    Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
-                                        ExerciseDraftCard(
-                                            draft = state.data,
-                                            animate = uiState.shouldAnimateDraft,
-                                            onConfirm = { viewModel.confirmExerciseDraft(state.data) },
-                                            onCancel = viewModel::cancelDraft,
-                                            onItemClick = { index -> editingExerciseIndex = index }
-                                        )
-                                    }
-                                }
-                            }
-                            else -> {}
                         }
-                    }
-
-                    // Food entries with swipe-to-delete
-                    uiState.currentSummary?.foodEntries?.let { entries ->
-                        if (entries.isNotEmpty()) {
-                            item {
-                                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-                                Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
-                                    TrackyCardTitle(text = "Food")
-                                }
-                                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
-                            }
-                            items(entries, key = { it.id }) { entry ->
-                                Box(
-                                    modifier = Modifier
-                                        .padding(horizontal = TrackyTokens.Spacing.M)
-                                        .padding(bottom = TrackyTokens.Spacing.DenseListSpacing)
-                                ) {
-                                    SwipeableRow(
-                                        onDelete = { viewModel.deleteFoodEntry(entry.id) }
-                                    ) {
-                                        FoodEntryRow(entry = entry, onClick = { onNavigateToEntryDetail(entry.id, "food") })
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Exercise entries with swipe-to-delete
-                    uiState.currentSummary?.exerciseEntries?.let { entries ->
-                        if (entries.isNotEmpty()) {
-                            item {
-                                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-                                Box(modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M)) {
-                                    TrackyCardTitle(text = "Exercise")
-                                }
-                                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
-                            }
-                            items(entries, key = { it.id }) { entry ->
-                                Box(
-                                    modifier = Modifier
-                                        .padding(horizontal = TrackyTokens.Spacing.M)
-                                        .padding(bottom = TrackyTokens.Spacing.DenseListSpacing)
-                                ) {
-                                    SwipeableRow(
-                                        onDelete = { viewModel.deleteExerciseEntry(entry.id) }
-                                    ) {
-                                        ExerciseEntryRow(entry = entry, onClick = { onNavigateToEntryDetail(entry.id, "exercise") })
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Empty state for no entries - hide if entries exist OR if drafting
-                    val hasEntries = (uiState.currentSummary?.foodEntries?.isNotEmpty() == true) ||
-                                    (uiState.currentSummary?.exerciseEntries?.isNotEmpty() == true)
-                    val isDrafting = draftState is DraftState.Drafting ||
-                                    draftState is DraftState.FoodDraft ||
-                                    draftState is DraftState.ExerciseDraft
-                    val emptyStateVisibleMessages = chatMessages.filter { it.role != MessageRole.USER }
-
-                    if (!hasEntries && !isDrafting && emptyStateVisibleMessages.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = TrackyTokens.Spacing.XL),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                TrackyBodySmall(
-                                    text = "No logs for this day :(",
-                                    color = TrackyColors.TextTertiary
-                                )
-                            }
-                        }
-                    }
-
-                    // Bottom padding for composer
-                    item {
-                        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XXXL))
                     }
                 }
 
@@ -576,6 +621,132 @@ fun HomeScreen(
                     onGalleryClick = { galleryLauncher.launch("image/*") }
                 )
             }
+
+            // Streak Modal
+            if (uiState.showStreakModal) {
+                TrackyBottomSheet(onDismissRequest = viewModel::dismissStreakModal) {
+                    StreakModalContent(
+                        streakInfo = uiState.streakInfo,
+                        onDismiss = viewModel::dismissStreakModal
+                    )
+                }
+            }
+
+            // Pill Menu Overlay (Persistent)
+            AnimatedVisibility(
+                visible = uiState.showSidebar,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { viewModel.toggleSidebar() }
+                )
+            }
+
+            AnimatedVisibility(
+                visible = uiState.showSidebar,
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .padding(top = TrackyTokens.Spacing.M, end = TrackyTokens.Spacing.M),
+                    contentAlignment = Alignment.TopEnd
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.S)
+                    ) {
+                        // The original menu button position (conceptual top row)
+                        // Add some space to align with the top bar menu icon
+                        Spacer(modifier = Modifier.height(48.dp))
+
+                        PillMenuItem(
+                            icon = Icons.Outlined.MonitorWeight,
+                            text = "Tracking",
+                            onClick = {
+                                viewModel.toggleSidebar()
+                                onNavigateToWeight()
+                            }
+                        )
+
+                        PillMenuItem(
+                            icon = Icons.Outlined.Settings,
+                            text = "Settings",
+                            onClick = {
+                                viewModel.toggleSidebar()
+                                onNavigateToSettings()
+                            }
+                        )
+
+                        // Spacer remove to bring X closer to settings pill as requested
+
+                        // Persistent Close Icon
+                        IconButton(
+                            onClick = viewModel::toggleSidebar,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(TrackyColors.Surface, CircleShape)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Close,
+                                contentDescription = "Close Menu",
+                                tint = TrackyColors.TextPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Floating Hamburger Menu (Always visible, not blurred)
+            val hamburgerBackgroundColor by animateColorAsState(
+                targetValue = if (uiState.showSidebar) TrackyColors.Surface else Color.Transparent,
+                label = "HamburgerBackground"
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = TrackyTokens.Spacing.M, end = TrackyTokens.Spacing.ScreenPadding)
+                    .size(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                IconButton(
+                    onClick = viewModel::toggleSidebar,
+                    modifier = Modifier.background(hamburgerBackgroundColor, CircleShape)
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(20.dp)
+                                .height(2.dp)
+                                .background(TrackyColors.TextSecondary, RoundedCornerShape(1.dp))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(14.dp)
+                                .height(2.dp)
+                                .background(TrackyColors.TextSecondary, RoundedCornerShape(1.dp))
+                        )
+                    }
+                }
+            }
+
 
             // Snackbar for errors
             SnackbarHost(
@@ -612,8 +783,8 @@ fun HomeScreen(
             EditFoodDraftItemSheet(
                 item = item,
                 onDismiss = { editingFoodIndex = null },
-                onSave = { name, quantity, unit ->
-                    viewModel.updateFoodDraftItem(0L, index, name, quantity, unit)
+                onSave = { name, quantity, unit, cal, carb, prot, fat, manual ->
+                    viewModel.updateFoodDraftItem(0L, index, name, quantity, unit, cal, carb, prot, fat, manual)
                     editingFoodIndex = null
                 }
             )
@@ -629,9 +800,10 @@ fun HomeScreen(
             val item = draft.items[index]
             EditExerciseDraftItemSheet(
                 item = item,
+                userWeightKg = uiState.userWeightKg,
                 onDismiss = { editingExerciseIndex = null },
-                onSave = { activity, duration ->
-                    viewModel.updateExerciseDraftItem(0L, index, activity, duration)
+                onSave = { activity, duration, intensity, calories, isManual ->
+                    viewModel.updateExerciseDraftItem(0L, index, activity, duration, intensity, calories, isManual)
                     editingExerciseIndex = null
                 }
             )
@@ -694,19 +866,72 @@ private fun CaloriesCard(
     goalCalories: Float,
     onEditGoals: () -> Unit
 ) {
+    val messageIndex = remember { kotlin.random.Random.nextInt(5) }
+    val percentage = if (goalCalories > 0) (foodCalories / goalCalories) * 100f else 0f
+    
+    val message = when {
+        foodCalories <= 0f -> listOf(
+            "Still a long way to go!",
+            "Ready to start your day?",
+            "Let's log your first meal!",
+            "Time to fuel up!",
+            "Your journey today starts now."
+        )[messageIndex]
+        percentage < 50f -> listOf(
+            "Great progress!",
+            "Off to a solid start!",
+            "Keep that momentum going!",
+            "Every bite counts!",
+            "Building a healthy habit today."
+        )[messageIndex]
+        percentage < 75f -> listOf(
+            "You're getting there!",
+            "Over the halfway mark!",
+            "You're doing great, keep it up!",
+            "Halfway to crushing your goal!",
+            "Steady progress wins the day."
+        )[messageIndex]
+        percentage < 90f -> listOf(
+            "You're nearing your daily goals",
+            "Almost there!",
+            "Just a final stretch to go!",
+            "You're close to the finish line.",
+            "Goal insight – you've got this!"
+        )[messageIndex]
+        percentage <= 100f -> listOf(
+            "Great job for today!",
+            "Mission nearly accomplished!",
+            "Perfect pacing so far!",
+            "You've balanced your day beautifully.",
+            "Goal reached (almost)!"
+        )[messageIndex]
+        else -> listOf(
+            "You're over the limit",
+            "Goal exceeded – stay mindful!",
+            "A little extra today? That's okay!",
+            "Watch your steps to balance it out.",
+            "Tomorrow is a fresh start!"
+        )[messageIndex]
+    }
+
     TrackyCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TrackyCardTitle(text = "Calories")
-            TrackyChip(
-                label = "Edit Goals",
-                selected = false,
+            TrackyCardTitle(text = message)
+            IconButton(
                 onClick = onEditGoals,
-                compact = true
-            )
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Edit,
+                    contentDescription = "Edit Goals",
+                    tint = TrackyColors.TextSecondary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
         TrackyCaloriesProgress(
@@ -784,7 +1009,16 @@ private fun FoodDraftCard(
     TrackyCard(
         modifier = Modifier.scale(scale.value)
     ) {
-        TrackyCardTitle(text = "Confirm Food Entry")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.Restaurant,
+                contentDescription = null,
+                tint = TrackyColors.BrandPrimary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(TrackyTokens.Spacing.XS))
+            TrackyCardTitle(text = "Confirm Food Entry")
+        }
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
         draft.items.forEachIndexed { index, item ->
@@ -795,7 +1029,17 @@ private fun FoodDraftCard(
                     .padding(vertical = TrackyTokens.Spacing.XXS),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                TrackyBodyText(text = "${item.quantity.toSmartString()} ${item.unit} ${item.name}")
+                Column(modifier = Modifier.weight(1f).padding(end = TrackyTokens.Spacing.S)) {
+                    TrackyBodyText(
+                        text = item.name,
+                        maxLines = 1
+                    )
+                    TrackyBodySmall(
+                        text = "${item.quantity.toSmartString()} ${item.unit}",
+                        color = TrackyColors.TextSecondary,
+                        maxLines = 1
+                    )
+                }
                 Column(horizontalAlignment = Alignment.End) {
                     TrackyBodySmall(text = "${item.calories.toInt()} kcal")
                     TrackyText(
@@ -866,7 +1110,16 @@ private fun ExerciseDraftCard(
     TrackyCard(
         modifier = Modifier.scale(scale.value)
     ) {
-        TrackyCardTitle(text = "Confirm Exercise Entry")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.FitnessCenter,
+                contentDescription = null,
+                tint = TrackyColors.Success,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(TrackyTokens.Spacing.XS))
+            TrackyCardTitle(text = "Confirm Exercise Entry")
+        }
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
         draft.items.forEachIndexed { index, item ->
@@ -877,8 +1130,28 @@ private fun ExerciseDraftCard(
                     .padding(vertical = TrackyTokens.Spacing.XXS),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                TrackyBodyText(text = item.activity)
-                TrackyBodySmall(text = "${item.durationMinutes} min")
+                Column(modifier = Modifier.weight(1f).padding(end = TrackyTokens.Spacing.S)) {
+                    TrackyBodyText(
+                        text = item.activity,
+                        maxLines = 1
+                    )
+                    TrackyBodySmall(
+                        text = "${item.durationMinutes} min",
+                        color = TrackyColors.TextSecondary,
+                        maxLines = 1
+                    )
+                }
+                
+                Column(horizontalAlignment = Alignment.End) {
+                    TrackyBodySmall(text = "${item.caloriesBurned.toInt()} kcal")
+                    item.intensity.let { intensity ->
+                        TrackyText(
+                            text = intensity.value.lowercase().replaceFirstChar { it.uppercase() },
+                            style = TrackyTextStyle.LabelExtraSmall,
+                            color = TrackyColors.TextTertiary
+                        )
+                    }
+                }
             }
         }
 
@@ -982,19 +1255,21 @@ private fun ExerciseEntryRow(
                         maxLines = 1
                     )
                     
-                    if (entry.items.size > 1) {
-                         TrackyBodySmall(
-                            text = "+${entry.items.size - 1} more items",
-                            color = TrackyColors.TextTertiary
-                        )
-                    } else {
-                        TrackyBodySmall(
-                            text = "${entry.totalDurationMinutes} min",
-                            color = TrackyColors.TextTertiary
-                        )
-                    }
+                if (entry.items.size > 1) {
+                    TrackyBodySmall(
+                        text = "+${entry.items.size - 1} more items",
+                        color = TrackyColors.TextTertiary
+                    )
+                } else {
+                    val duration = entry.totalDurationMinutes
+                    val intensity = entry.items.firstOrNull()?.intensity?.value?.replaceFirstChar { it.uppercase() } ?: "Moderate"
+                    TrackyBodySmall(
+                        text = "$duration min | $intensity",
+                        color = TrackyColors.TextTertiary
+                    )
                 }
             }
+        }
             Column(horizontalAlignment = Alignment.End) {
                 TrackyBodyText(
                     text = "-${entry.totalCalories.toInt()} kcal",
@@ -1204,7 +1479,6 @@ fun ComposerBar(
             .fillMaxWidth()
             .padding(bottom = if (isImeVisible) TrackyTokens.Spacing.XXS else 0.dp)
             .background(TrackyColors.Surface)
-
             .padding(TrackyTokens.Spacing.S)
     ) {
         // Input row - AI auto-detects food vs exercise
@@ -1241,7 +1515,7 @@ fun ComposerBar(
                 enabled = inputText.isNotBlank()
             ) {
                 Icon(
-                    Icons.Outlined.Send,
+                    Icons.AutoMirrored.Outlined.Send,
                     contentDescription = "Send",
                     tint = if (inputText.isNotBlank())
                         TrackyColors.BrandPrimary
@@ -1258,17 +1532,91 @@ fun ComposerBar(
 private fun EditFoodDraftItemSheet(
     item: com.tracky.app.domain.model.DraftFoodItem,
     onDismiss: () -> Unit,
-    onSave: (String, Double, String) -> Unit
+    onSave: (String, Double, String, Float, Float, Float, Float, Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf(item.name) }
-    var quantity by remember { mutableStateOf(item.quantity.toString()) }
+    var quantityText by remember { mutableStateOf(item.quantity.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }) }
     var unit by remember { mutableStateOf(item.unit) }
+    
+    // Macros states
+    var caloriesText by remember { mutableStateOf(kotlin.math.round(item.calories).toInt().toString()) }
+    var carbsText by remember { mutableStateOf(kotlin.math.round(item.carbsG).toInt().toString()) }
+    var proteinText by remember { mutableStateOf(kotlin.math.round(item.proteinG).toInt().toString()) }
+    var fatText by remember { mutableStateOf(kotlin.math.round(item.fatG).toInt().toString()) }
+
+    // Ratios for scaling
+    val currentQty = item.quantity.toFloat()
+    fun getRatio(value: Float): Float = if (currentQty > 0) value / currentQty else 0f
+    
+    val ratioCals = remember { getRatio(item.calories) }
+    val ratioCarbs = remember { getRatio(item.carbsG) }
+    val ratioProt = remember { getRatio(item.proteinG) }
+    val ratioFat = remember { getRatio(item.fatG) }
+
+    // Original values for checking if manual edit badge should show
+    val originalName = remember { item.name }
+    val originalQty = remember { item.quantity }
+    val originalUnit = remember { item.unit }
+    val originalCals = remember { item.calories }
+    val originalCarbs = remember { item.carbsG }
+    val originalProt = remember { item.proteinG }
+    val originalFat = remember { item.fatG }
+
+    val isManual = remember(name, quantityText, unit, caloriesText, carbsText, proteinText, fatText) {
+        val q = quantityText.toDoubleOrNull() ?: 0.0
+        val cal = caloriesText.toFloatOrNull() ?: 0f
+        val carb = carbsText.toFloatOrNull() ?: 0f
+        val prot = proteinText.toFloatOrNull() ?: 0f
+        val fat = fatText.toFloatOrNull() ?: 0f
+
+        name != originalName || 
+        q != originalQty || 
+        unit != originalUnit ||
+        kotlin.math.abs(cal - originalCals) > 1f ||
+        kotlin.math.abs(carb - originalCarbs) > 0.5f ||
+        kotlin.math.abs(prot - originalProt) > 0.5f ||
+        kotlin.math.abs(fat - originalFat) > 0.5f
+    }
+
+    fun updateMacrosAutomatically(newQty: Double) {
+        val q = newQty.toFloat()
+        caloriesText = kotlin.math.round(ratioCals * q).toInt().toString()
+        carbsText = kotlin.math.round(ratioCarbs * q).toInt().toString()
+        proteinText = kotlin.math.round(ratioProt * q).toInt().toString()
+        fatText = kotlin.math.round(ratioFat * q).toInt().toString()
+    }
 
     TrackyBottomSheet(
         onDismissRequest = onDismiss,
-        title = "Edit Item"
+        title = null
     ) {
-        Column {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            // Header with badge
+             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = TrackyTokens.Spacing.M),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                androidx.compose.material3.Text(
+                    text = "Edit Item",
+                    style = com.tracky.app.ui.theme.TrackyTypography.HeadlineMedium,
+                    color = TrackyColors.TextPrimary
+                )
+                
+                if (isManual) {
+                    TrackyChip(
+                        label = "Manual Edit",
+                        selected = true,
+                        onClick = {},
+                        compact = true,
+                        enabled = true,
+                        tint = TrackyColors.Warning
+                    )
+                }
+            }
+
             TrackyInput(
                 value = name,
                 onValueChange = { name = it },
@@ -1276,13 +1624,18 @@ private fun EditFoodDraftItemSheet(
                 placeholder = "Item name"
             )
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+            
             Row(horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.M)) {
                 Box(modifier = Modifier.weight(1f)) {
                     com.tracky.app.ui.components.TrackyNumberInput(
-                        value = quantity,
-                        onValueChange = { quantity = it },
+                        value = quantityText,
+                        onValueChange = { 
+                            quantityText = it 
+                            it.toDoubleOrNull()?.let { q -> updateMacrosAutomatically(q) }
+                        },
                         label = "Quantity",
-                        placeholder = "1.0"
+                        placeholder = "1.0",
+                        allowDecimal = true
                     )
                 }
                 Box(modifier = Modifier.weight(1f)) {
@@ -1294,11 +1647,62 @@ private fun EditFoodDraftItemSheet(
                     )
                 }
             }
+            
+            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.L))
+            TrackyCardTitle(text = "Nutritional Info (total)")
+            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
+
+            com.tracky.app.ui.components.TrackyNumberInput(
+                value = caloriesText,
+                onValueChange = { caloriesText = it },
+                label = "Calories",
+                suffix = "kcal",
+                allowDecimal = false
+            )
+            
+            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.M)) {
+                Box(modifier = Modifier.weight(1f)) {
+                    com.tracky.app.ui.components.TrackyNumberInput(
+                        value = carbsText,
+                        onValueChange = { carbsText = it },
+                        label = "Carbs",
+                        suffix = "g",
+                        allowDecimal = false
+                    )
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    com.tracky.app.ui.components.TrackyNumberInput(
+                        value = proteinText,
+                        onValueChange = { proteinText = it },
+                        label = "Protein",
+                        suffix = "g",
+                        allowDecimal = false
+                    )
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    com.tracky.app.ui.components.TrackyNumberInput(
+                        value = fatText,
+                        onValueChange = { fatText = it },
+                        label = "Fat",
+                        suffix = "g",
+                        allowDecimal = false
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.L))
+
             TrackySheetActions(
                 primaryText = "Save",
                 onPrimaryClick = {
-                    val q = quantity.toDoubleOrNull() ?: 1.0
-                    onSave(name, q, unit)
+                    val q = quantityText.toDoubleOrNull() ?: 1.0
+                    val cal = caloriesText.toFloatOrNull() ?: 0f
+                    val carb = carbsText.toFloatOrNull() ?: 0f
+                    val prot = proteinText.toFloatOrNull() ?: 0f
+                    val fat = fatText.toFloatOrNull() ?: 0f
+                    onSave(name, q, unit, cal, carb, prot, fat, isManual)
                 },
                 secondaryText = "Cancel",
                 onSecondaryClick = onDismiss
@@ -1311,40 +1715,193 @@ private fun EditFoodDraftItemSheet(
 @Composable
 private fun EditExerciseDraftItemSheet(
     item: com.tracky.app.domain.model.DraftExerciseItem,
+    userWeightKg: Float,
     onDismiss: () -> Unit,
-    onSave: (String, Int) -> Unit
+    onSave: (String, Int, com.tracky.app.domain.model.ExerciseIntensity, Float, Boolean) -> Unit
 ) {
+    // Local state
     var activity by remember { mutableStateOf(item.activity) }
-    var duration by remember { mutableStateOf(item.durationMinutes.toString()) }
+    var durationText by remember { mutableStateOf(item.durationMinutes.toString()) }
+    var caloriesText by remember { mutableStateOf(kotlin.math.round(item.caloriesBurned).toInt().toString()) }
+    var intensity by remember { mutableStateOf(item.intensity) }
+    
+    // Store original values to determine "Manual Edit" state
+    // We assume the passed 'item' is the original state when sheet opens
+    val originalActivity = remember { item.activity }
+    val originalDuration = remember { item.durationMinutes }
+    val originalCalories = remember { item.caloriesBurned }
+    val originalIntensity = remember { item.intensity }
+
+    // Derive isManual based on difference from original
+    // Use a tolerance for float comparison
+    val isManual = remember(activity, durationText, caloriesText, intensity) {
+        val d = durationText.toIntOrNull() ?: 0
+        val c = caloriesText.toFloatOrNull() ?: 0f
+        
+        activity != originalActivity ||
+        d != originalDuration ||
+        kotlin.math.abs(c - originalCalories) > 1.0f ||
+        intensity != originalIntensity
+    }
+
+    // Calculation Helpers
+    fun calculateCalories(met: Float, weight: Float, minutes: Int): Float {
+        return (met * 3.5f * weight * minutes) / 200f
+    }
+
+    fun adjustMetForIntensity(currentMet: Float, oldIntensity: com.tracky.app.domain.model.ExerciseIntensity?, newIntensity: com.tracky.app.domain.model.ExerciseIntensity): Float {
+        if (oldIntensity == newIntensity) return currentMet
+        if (currentMet <= 0f) return 0f
+
+        fun getFactor(i: com.tracky.app.domain.model.ExerciseIntensity?): Float = when(i) {
+            com.tracky.app.domain.model.ExerciseIntensity.LOW -> 0.7f
+            com.tracky.app.domain.model.ExerciseIntensity.MODERATE -> 1.0f
+            com.tracky.app.domain.model.ExerciseIntensity.HIGH -> 1.4f
+            null -> 1.0f
+        }
+
+        val oldFactor = getFactor(oldIntensity ?: com.tracky.app.domain.model.ExerciseIntensity.MODERATE)
+        val newFactor = getFactor(newIntensity)
+        return currentMet * (newFactor / oldFactor)
+    }
+
+    // Update handler - updates calories when Duration/Intensity changes
+    fun updateCaloriesAuto() {
+        val d = durationText.toIntOrNull() ?: return
+        if (item.metValue > 0 && userWeightKg > 0) {
+            // Adjust MET based on *current* intensity vs *item's original* MET-intensity (which draft doesn't explicitly store separately, but we assume item.metValue corresponds to item.intensity)
+            // Actually item.metValue matches item.intensity.
+            // But if we changed intensity from A to B, we need to adjust item.metValue.
+            val adjustedMet = adjustMetForIntensity(item.metValue, item.intensity, intensity)
+            val newCals = calculateCalories(adjustedMet, userWeightKg, d)
+            caloriesText = kotlin.math.round(newCals).toInt().toString()
+        }
+    }
 
     TrackyBottomSheet(
         onDismissRequest = onDismiss,
-        title = "Edit Exercise"
+        title = null
     ) {
         Column {
+            // Header with badge
+             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = TrackyTokens.Spacing.M),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                androidx.compose.material3.Text(
+                    text = "Edit Exercise",
+                    style = com.tracky.app.ui.theme.TrackyTypography.HeadlineMedium,
+                    color = TrackyColors.TextPrimary
+                )
+                
+                // Show badge if ANY field is changed
+                if (isManual) {
+                    TrackyChip(
+                        label = "Manual Edit",
+                        selected = true,
+                        onClick = {},
+                        compact = true,
+                        enabled = true,
+                        tint = TrackyColors.Warning
+                    )
+                }
+            }
+
             TrackyInput(
                 value = activity,
                 onValueChange = { activity = it },
                 label = "Activity",
                 placeholder = "Running, Walking, etc."
             )
+            
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+            
+            // Intensity Selector
+            TrackyBodySmall(text = "Intensity", color = TrackyColors.TextSecondary)
+            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
+            Row(horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XS)) {
+                com.tracky.app.domain.model.ExerciseIntensity.values().forEach { level ->
+                    TrackyChip(
+                        label = level.name.lowercase().replaceFirstChar { it.uppercase() },
+                        selected = intensity == level,
+                        onClick = { 
+                            intensity = level 
+                            updateCaloriesAuto()
+                        },
+                        compact = true
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+
             com.tracky.app.ui.components.TrackyNumberInput(
-                value = duration,
-                onValueChange = { duration = it },
+                value = durationText,
+                onValueChange = { 
+                    durationText = it 
+                    updateCaloriesAuto()
+                },
                 label = "Duration (minutes)",
                 placeholder = "30",
+                allowDecimal = false
+            )
+
+            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+
+            com.tracky.app.ui.components.TrackyNumberInput(
+                value = caloriesText,
+                onValueChange = { caloriesText = it }, // Manual override allowed
+                label = "Calories Burned",
+                suffix = "kcal",
+                placeholder = "100",
                 allowDecimal = false
             )
             
             TrackySheetActions(
                 primaryText = "Save",
                 onPrimaryClick = {
-                    val d = duration.toIntOrNull() ?: 30
-                    onSave(activity, d)
+                    val d = durationText.toIntOrNull() ?: 0
+                    val c = caloriesText.toFloatOrNull() ?: 0f
+                    onSave(activity, d, intensity, c, isManual)
                 },
                 secondaryText = "Cancel",
                 onSecondaryClick = onDismiss
+            )
+        }
+    }
+}
+@Composable
+private fun PillMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    onClick: () -> Unit,
+    isDanger: Boolean = false
+) {
+    Surface(
+        onClick = onClick,
+        shape = androidx.compose.foundation.shape.CircleShape,
+        color = if (isDanger) TrackyColors.Error.copy(alpha = 0.1f) else TrackyColors.Surface,
+        modifier = Modifier.padding(horizontal = 4.dp),
+        shadowElevation = 4.dp
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = TrackyTokens.Spacing.M, vertical = TrackyTokens.Spacing.S),
+            horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.S)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (isDanger) TrackyColors.Error else TrackyColors.TextPrimary,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = text,
+                style = TrackyTypography.BodyMedium,
+                color = if (isDanger) TrackyColors.Error else TrackyColors.TextPrimary
             )
         }
     }

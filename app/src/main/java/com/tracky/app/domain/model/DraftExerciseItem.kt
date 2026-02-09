@@ -9,5 +9,6 @@ data class DraftExerciseItem(
     val metValue: Float,
     val caloriesBurned: Float,
     val intensity: ExerciseIntensity,
-    val resolved: Boolean = true
+    val resolved: Boolean = true,
+    val isManual: Boolean = false
 )

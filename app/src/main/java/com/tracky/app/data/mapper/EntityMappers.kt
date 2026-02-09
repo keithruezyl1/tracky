@@ -23,6 +23,8 @@ import com.tracky.app.domain.model.ProvenanceSource
 import com.tracky.app.domain.model.UnitPreference
 import com.tracky.app.domain.model.UserProfile
 import com.tracky.app.domain.model.WeightEntry
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UserProfile Mappers
@@ -118,6 +120,16 @@ fun FoodEntry.toEntity(): FoodEntryEntity = FoodEntryEntity(
     updatedAt = updatedAt
 )
 
+
+
+// ... (existing imports will be preserved by replace_file_content if I target specific blocks, but I need to be careful not to remove them if I replace large chunks)
+// To avoid messing up imports, I will just add the import at the top if needed, but replace_file_content replaces a block.
+// I'll assume standard imports are there. I'll use FQCN or add imports if I can.
+// Actually, I should check if I can add imports easily.
+// I'll just use `kotlinx.serialization.json.Json` inline or add imports in a separate call if needed, but `replace_file_content` is for contiguous blocks.
+// I'll replace the specific functions.
+
+// FoodItemEntity.toDomain
 fun FoodItemEntity.toDomain(): FoodItem = FoodItem(
     id = id,
     name = name,
@@ -134,7 +146,16 @@ fun FoodItemEntity.toDomain(): FoodItem = FoodItem(
         confidence = confidence
     ),
     displayOrder = displayOrder,
-    canonicalKey = canonicalKey
+    canonicalKey = canonicalKey,
+    isManualMacros = isManualMacros,
+    analysisRevision = analysisRevision,
+    pendingSuggestion = pendingSuggestionJson?.let { 
+        try {
+            Json.decodeFromString<FoodItem>(it)
+        } catch (e: Exception) {
+            null
+        }
+    }
 )
 
 fun FoodItem.toEntity(foodEntryId: Long): FoodItemEntity {
@@ -153,9 +174,54 @@ fun FoodItem.toEntity(foodEntryId: Long): FoodItemEntity {
         sourceId = provenance.sourceId,
         confidence = provenance.confidence,
         displayOrder = displayOrder,
-        canonicalKey = canonicalKey
+        canonicalKey = canonicalKey,
+        isManualMacros = isManualMacros,
+        analysisRevision = analysisRevision,
+        pendingSuggestionJson = pendingSuggestion?.let { Json.encodeToString(it) }
     )
 }
+
+// ...
+
+fun ExerciseItemEntity.toDomain(): ExerciseItem = ExerciseItem(
+    id = id,
+    activityName = activityName,
+    durationMinutes = durationMinutes,
+    metValue = metValue,
+    caloriesBurned = caloriesBurned,
+    intensity = ExerciseIntensity.fromValue(intensity),
+    provenance = Provenance(
+        source = ProvenanceSource.fromValue(source),
+        sourceId = null,
+        confidence = confidence
+    ),
+    displayOrder = displayOrder,
+    isManual = isManual,
+    analysisRevision = analysisRevision,
+    pendingSuggestion = pendingSuggestionJson?.let {
+        try {
+            Json.decodeFromString<ExerciseItem>(it)
+        } catch (e: Exception) {
+            null
+        }
+    }
+)
+
+fun ExerciseItem.toEntity(entryId: Long): ExerciseItemEntity = ExerciseItemEntity(
+    id = id,
+    entryId = entryId,
+    activityName = activityName,
+    durationMinutes = durationMinutes,
+    metValue = metValue,
+    caloriesBurned = caloriesBurned,
+    intensity = intensity?.value,
+    source = provenance.source.value,
+    confidence = provenance.confidence,
+    displayOrder = displayOrder,
+    isManual = isManual,
+    analysisRevision = analysisRevision,
+    pendingSuggestionJson = pendingSuggestion?.let { Json.encodeToString(it) }
+)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ExerciseEntry Mappers
@@ -166,9 +232,9 @@ fun ExerciseEntryEntity.toDomain(items: List<ExerciseItemEntity>): ExerciseEntry
     date = date,
     time = time,
     timestamp = timestamp,
+    items = items.map { it.toDomain() },
     totalCalories = totalCalories,
     totalDurationMinutes = totalDurationMinutes,
-    items = items.map { it.toDomain() },
     userWeightKg = userWeightKg,
     originalInput = originalInput,
     createdAt = createdAt,
@@ -186,34 +252,6 @@ fun ExerciseEntry.toEntity(): ExerciseEntryEntity = ExerciseEntryEntity(
     originalInput = originalInput,
     createdAt = createdAt,
     updatedAt = updatedAt
-)
-
-fun ExerciseItemEntity.toDomain(): ExerciseItem = ExerciseItem(
-    id = id,
-    activityName = activityName,
-    durationMinutes = durationMinutes,
-    metValue = metValue,
-    caloriesBurned = caloriesBurned,
-    intensity = ExerciseIntensity.fromValue(intensity),
-    provenance = Provenance(
-        source = ProvenanceSource.fromValue(source),
-        sourceId = null, // Exercise items don't have IDs in this schema yet
-        confidence = confidence
-    ),
-    displayOrder = displayOrder
-)
-
-fun ExerciseItem.toEntity(entryId: Long): ExerciseItemEntity = ExerciseItemEntity(
-    id = id,
-    entryId = entryId,
-    activityName = activityName,
-    durationMinutes = durationMinutes,
-    metValue = metValue,
-    caloriesBurned = caloriesBurned,
-    intensity = intensity?.value,
-    source = provenance.source.value,
-    confidence = provenance.confidence,
-    displayOrder = displayOrder
 )
 
 // ─────────────────────────────────────────────────────────────────────────────

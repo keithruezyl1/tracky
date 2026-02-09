@@ -34,5 +34,6 @@ data class DraftFoodItem(
     val proteinG: Float,
     val fatG: Float,
     val provenance: Provenance,
-    val resolved: Boolean
+    val resolved: Boolean,
+    val isManualMacros: Boolean = false
 )

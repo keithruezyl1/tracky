@@ -35,6 +35,16 @@ interface ExerciseEntryDao {
     @Query("SELECT SUM(totalCalories) FROM exercise_entries WHERE date >= :startDate AND date <= :endDate")
     fun getTotalCaloriesBurnedBetween(startDate: String, endDate: String): Flow<Float?>
     
+    @Query("SELECT SUM(totalCalories) FROM exercise_entries WHERE date = :date")
+    suspend fun getTotalCaloriesBurnedForDateOnce(date: String): Float?
+
+    @Query("""
+        SELECT ei.* FROM exercise_items ei
+        INNER JOIN exercise_entries ee ON ei.entryId = ee.id
+        WHERE ee.date = :date
+    """)
+    suspend fun getExerciseItemsForDateOnce(date: String): List<ExerciseItemEntity>
+    
     @Insert
     suspend fun insert(entry: ExerciseEntryEntity): Long
     
@@ -52,6 +62,12 @@ interface ExerciseEntryDao {
     
     @Query("DELETE FROM exercise_entries WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Transaction
+    suspend fun deleteEntryWithItems(entryId: Long) {
+        deleteItemsForEntry(entryId)
+        deleteById(entryId)
+    }
 
     @Query("DELETE FROM exercise_items WHERE id = :itemId")
     suspend fun deleteItemById(itemId: Long)

@@ -3,15 +3,18 @@ package com.tracky.app.data.repository
 import com.tracky.app.data.local.dao.ExerciseEntryDao
 import com.tracky.app.data.local.dao.FoodEntryDao
 import com.tracky.app.data.local.dao.MacroTotals
+import com.tracky.app.data.local.dao.DailyLogSummaryDao
 import com.tracky.app.data.mapper.toDomain
 import com.tracky.app.data.mapper.toEntity
 import com.tracky.app.domain.model.DailySummary
 import com.tracky.app.domain.model.ExerciseEntry
 import com.tracky.app.domain.model.FoodEntry
 import com.tracky.app.domain.model.FoodItem
+import com.tracky.app.domain.usecase.StreakInteractor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,6 +22,8 @@ import javax.inject.Singleton
 class LoggingRepository @Inject constructor(
     private val foodEntryDao: FoodEntryDao,
     private val exerciseEntryDao: ExerciseEntryDao,
+    private val dailyLogSummaryDao: DailyLogSummaryDao,
+    private val streakInteractor: StreakInteractor,
     private val goalRepository: GoalRepository
 ) {
     // ─────────────────────────────────────────────────────────────────────────
@@ -29,11 +34,8 @@ class LoggingRepository @Inject constructor(
      * Get food entries for a date
      */
     fun getFoodEntriesForDate(date: String): Flow<List<FoodEntry>> {
-        return foodEntryDao.getEntriesForDate(date).map { entries ->
-            entries.map { entry ->
-                val items = foodEntryDao.getItemsForEntryOnce(entry.id)
-                entry.toDomain(items)
-            }
+        return foodEntryDao.getEntriesWithItemsForDate(date).map { entities ->
+            entities.map { it.entry.toDomain(it.items) }
         }
     }
 
@@ -41,9 +43,9 @@ class LoggingRepository @Inject constructor(
      * Get single food entry by ID
      */
     suspend fun getFoodEntryById(id: Long): FoodEntry? {
-        val entry = foodEntryDao.getEntryById(id) ?: return null
-        val items = foodEntryDao.getItemsForEntryOnce(id)
-        return entry.toDomain(items)
+        return foodEntryDao.getEntryWithItemsByIdOnce(id)?.let {
+            it.entry.toDomain(it.items)
+        }
     }
 
     /**
@@ -51,10 +53,13 @@ class LoggingRepository @Inject constructor(
      */
     suspend fun saveFoodEntry(entry: FoodEntry): Long {
         val entryEntity = entry.toEntity()
+        val entryId = foodEntryDao.insert(entryEntity)
         val itemEntities = entry.items.mapIndexed { index, item ->
-            item.toEntity(0).copy(displayOrder = index)
+            item.toEntity(entryId).copy(displayOrder = index)
         }
-        return foodEntryDao.insertEntryWithItems(entryEntity, itemEntities)
+        foodEntryDao.insertItems(itemEntities)
+        updateDailyLogSummary(entry.date)
+        return entryId
     }
 
     /**
@@ -63,13 +68,16 @@ class LoggingRepository @Inject constructor(
     suspend fun updateFoodEntry(entry: FoodEntry) {
         val itemEntities = entry.items.map { it.toEntity(entry.id) }
         foodEntryDao.updateEntryWithItems(entry.toEntity(), itemEntities)
+        updateDailyLogSummary(entry.date)
     }
 
     /**
      * Delete food entry
      */
     suspend fun deleteFoodEntry(id: Long) {
+        val entry = getFoodEntryById(id)
         foodEntryDao.deleteEntryWithItems(id)
+        entry?.let { updateDailyLogSummary(it.date) }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -103,6 +111,7 @@ class LoggingRepository @Inject constructor(
             item.toEntity(entryId).copy(displayOrder = index)
         }
         exerciseEntryDao.insertItems(itemEntities)
+        updateDailyLogSummary(entry.date)
         return entryId
     }
 
@@ -115,13 +124,16 @@ class LoggingRepository @Inject constructor(
             item.toEntity(entry.id).copy(displayOrder = index)
         }
         exerciseEntryDao.updateEntryWithItems(entry.toEntity(), itemEntities)
+        updateDailyLogSummary(entry.date)
     }
 
     /**
      * Delete exercise entry
      */
     suspend fun deleteExerciseEntry(id: Long) {
-        exerciseEntryDao.deleteById(id)
+        val entry = getExerciseEntryById(id)
+        exerciseEntryDao.deleteEntryWithItems(id)
+        entry?.let { updateDailyLogSummary(it.date) }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -169,9 +181,6 @@ class LoggingRepository @Inject constructor(
     // Daily Summary
     // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Get complete daily summary combining all data
-     */
     fun getDailySummary(date: String): Flow<DailySummary> {
         return combine(
             goalRepository.getGoalForDate(date),
@@ -181,12 +190,13 @@ class LoggingRepository @Inject constructor(
             getTotalExerciseCalories(date),
             getMacroTotals(date)
         ) { values ->
-            @Suppress("UNCHECKED_CAST")
             val goal = values[0] as? com.tracky.app.domain.model.DailyGoal
-            val foodEntries = values[1] as List<FoodEntry>
-            val exerciseEntries = values[2] as List<ExerciseEntry>
-            val foodCalories = values[3] as Float
-            val exerciseCalories = values[4] as Float
+            @Suppress("UNCHECKED_CAST")
+            val foodEntries = (values[1] as? List<FoodEntry>) ?: emptyList()
+            @Suppress("UNCHECKED_CAST")
+            val exerciseEntries = (values[2] as? List<ExerciseEntry>) ?: emptyList()
+            val foodCalories = (values[3] as? Float) ?: 0f
+            val exerciseCalories = (values[4] as? Float) ?: 0f
             val macros = values[5] as? MacroTotals
 
             DailySummary(
@@ -201,5 +211,39 @@ class LoggingRepository @Inject constructor(
                 exerciseEntries = exerciseEntries
             )
         }
+    }
+    /**
+     * Recompute daily log summary for a date, used for optimized streak checks.
+     */
+    private suspend fun updateDailyLogSummary(date: String) {
+        val foodKcal = foodEntryDao.getTotalCaloriesForDateOnce(date) ?: 0f
+        val exerciseKcal = exerciseEntryDao.getTotalCaloriesBurnedForDateOnce(date) ?: 0f
+        val goal = goalRepository.getGoalForDateOnce(date)
+        
+        // Qualification: >= 1 qualifying entry (>= 10 kcal)
+        // We need to count items directly in the DAO or just check totals for now.
+        // PRD says: "Commitment based: user logs >= 1 qualifying entry (kcal >= 10)"
+        
+        val foodItems = foodEntryDao.getFoodItemsForDateOnce(date)
+        val exerciseItems = exerciseEntryDao.getExerciseItemsForDateOnce(date)
+        
+        val qualifyingCount = foodItems.count { it.calories >= 10f } + 
+                           exerciseItems.count { it.caloriesBurned >= 10f }
+        
+        val targetKcal = goal?.calorieGoalKcal ?: 2000f
+        val metGoal = (targetKcal - foodKcal + exerciseKcal) >= 0
+
+        dailyLogSummaryDao.insert(
+            com.tracky.app.data.local.entity.DailyLogSummaryEntity(
+                date = date,
+                qualifyingEntriesCount = qualifyingCount,
+                totalCaloriesConsumed = foodKcal,
+                totalCaloriesBurned = exerciseKcal,
+                metGoal = metGoal
+            )
+        )
+        
+        // Recompute official streak count/state
+        streakInteractor.calculateStreak()
     }
 }

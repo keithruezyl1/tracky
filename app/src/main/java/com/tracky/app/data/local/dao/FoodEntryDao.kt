@@ -23,6 +23,14 @@ interface FoodEntryDao {
     @Query("SELECT * FROM food_entries WHERE date = :date ORDER BY timestamp DESC")
     suspend fun getEntriesForDateOnce(date: String): List<FoodEntryEntity>
     
+    @Transaction
+    @Query("SELECT * FROM food_entries WHERE date = :date ORDER BY timestamp DESC")
+    fun getEntriesWithItemsForDate(date: String): Flow<List<FoodEntryWithItems>>
+    
+    @Transaction
+    @Query("SELECT * FROM food_entries WHERE id = :id")
+    suspend fun getEntryWithItemsByIdOnce(id: Long): FoodEntryWithItems?
+
     @Query("SELECT * FROM food_entries WHERE id = :id")
     suspend fun getEntryById(id: Long): FoodEntryEntity?
     
@@ -35,6 +43,16 @@ interface FoodEntryDao {
     """)
     fun getTotalCaloriesForDate(date: String): Flow<Float?>
     
+    @Query("SELECT SUM(totalCalories) FROM food_entries WHERE date = :date")
+    suspend fun getTotalCaloriesForDateOnce(date: String): Float?
+
+    @Query("""
+        SELECT fi.* FROM food_items fi
+        INNER JOIN food_entries fe ON fi.foodEntryId = fe.id
+        WHERE fe.date = :date
+    """)
+    suspend fun getFoodItemsForDateOnce(date: String): List<FoodItemEntity>
+
     @Query("""
         SELECT SUM(totalCarbsG) as carbs, SUM(totalProteinG) as protein, SUM(totalFatG) as fat
         FROM food_entries WHERE date = :date
@@ -102,7 +120,8 @@ interface FoodEntryDao {
     @Query("""
         SELECT DISTINCT 
             id, foodEntryId, name, matchedName, quantity, unit, 
-            calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder, canonicalKey
+            calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder, canonicalKey,
+            isManualMacros, analysisRevision, pendingSuggestionJson
         FROM food_items
         WHERE (name LIKE '%' || :query || '%' OR matchedName LIKE '%' || :query || '%')
           AND source != 'unresolved'

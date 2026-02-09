@@ -88,7 +88,7 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR ABORT INTO `exercise_items` (`id`,`entryId`,`activityName`,`durationMinutes`,`metValue`,`caloriesBurned`,`intensity`,`source`,`confidence`,`displayOrder`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR ABORT INTO `exercise_items` (`id`,`entryId`,`activityName`,`durationMinutes`,`metValue`,`caloriesBurned`,`intensity`,`source`,`confidence`,`displayOrder`,`isManual`,`analysisRevision`,`pendingSuggestionJson`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -108,6 +108,14 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
         statement.bindString(8, entity.getSource());
         statement.bindDouble(9, entity.getConfidence());
         statement.bindLong(10, entity.getDisplayOrder());
+        final int _tmp = entity.isManual() ? 1 : 0;
+        statement.bindLong(11, _tmp);
+        statement.bindLong(12, entity.getAnalysisRevision());
+        if (entity.getPendingSuggestionJson() == null) {
+          statement.bindNull(13);
+        } else {
+          statement.bindString(13, entity.getPendingSuggestionJson());
+        }
       }
     };
     this.__deletionAdapterOfExerciseEntryEntity = new EntityDeletionOrUpdateAdapter<ExerciseEntryEntity>(__db) {
@@ -250,6 +258,12 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
         }
       }
     }, $completion);
+  }
+
+  @Override
+  public Object deleteEntryWithItems(final long entryId,
+      final Continuation<? super Unit> $completion) {
+    return RoomDatabaseKt.withTransaction(__db, (__cont) -> ExerciseEntryDao.DefaultImpls.deleteEntryWithItems(ExerciseEntryDao_Impl.this, entryId, __cont), $completion);
   }
 
   @Override
@@ -756,6 +770,123 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
     });
   }
 
+  @Override
+  public Object getTotalCaloriesBurnedForDateOnce(final String date,
+      final Continuation<? super Float> $completion) {
+    final String _sql = "SELECT SUM(totalCalories) FROM exercise_entries WHERE date = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, date);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<Float>() {
+      @Override
+      @Nullable
+      public Float call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final Float _result;
+          if (_cursor.moveToFirst()) {
+            final Float _tmp;
+            if (_cursor.isNull(0)) {
+              _tmp = null;
+            } else {
+              _tmp = _cursor.getFloat(0);
+            }
+            _result = _tmp;
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object getExerciseItemsForDateOnce(final String date,
+      final Continuation<? super List<ExerciseItemEntity>> $completion) {
+    final String _sql = "\n"
+            + "        SELECT ei.* FROM exercise_items ei\n"
+            + "        INNER JOIN exercise_entries ee ON ei.entryId = ee.id\n"
+            + "        WHERE ee.date = ?\n"
+            + "    ";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, date);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<ExerciseItemEntity>>() {
+      @Override
+      @NonNull
+      public List<ExerciseItemEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfEntryId = CursorUtil.getColumnIndexOrThrow(_cursor, "entryId");
+          final int _cursorIndexOfActivityName = CursorUtil.getColumnIndexOrThrow(_cursor, "activityName");
+          final int _cursorIndexOfDurationMinutes = CursorUtil.getColumnIndexOrThrow(_cursor, "durationMinutes");
+          final int _cursorIndexOfMetValue = CursorUtil.getColumnIndexOrThrow(_cursor, "metValue");
+          final int _cursorIndexOfCaloriesBurned = CursorUtil.getColumnIndexOrThrow(_cursor, "caloriesBurned");
+          final int _cursorIndexOfIntensity = CursorUtil.getColumnIndexOrThrow(_cursor, "intensity");
+          final int _cursorIndexOfSource = CursorUtil.getColumnIndexOrThrow(_cursor, "source");
+          final int _cursorIndexOfConfidence = CursorUtil.getColumnIndexOrThrow(_cursor, "confidence");
+          final int _cursorIndexOfDisplayOrder = CursorUtil.getColumnIndexOrThrow(_cursor, "displayOrder");
+          final int _cursorIndexOfIsManual = CursorUtil.getColumnIndexOrThrow(_cursor, "isManual");
+          final int _cursorIndexOfAnalysisRevision = CursorUtil.getColumnIndexOrThrow(_cursor, "analysisRevision");
+          final int _cursorIndexOfPendingSuggestionJson = CursorUtil.getColumnIndexOrThrow(_cursor, "pendingSuggestionJson");
+          final List<ExerciseItemEntity> _result = new ArrayList<ExerciseItemEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final ExerciseItemEntity _item;
+            final long _tmpId;
+            _tmpId = _cursor.getLong(_cursorIndexOfId);
+            final long _tmpEntryId;
+            _tmpEntryId = _cursor.getLong(_cursorIndexOfEntryId);
+            final String _tmpActivityName;
+            _tmpActivityName = _cursor.getString(_cursorIndexOfActivityName);
+            final int _tmpDurationMinutes;
+            _tmpDurationMinutes = _cursor.getInt(_cursorIndexOfDurationMinutes);
+            final float _tmpMetValue;
+            _tmpMetValue = _cursor.getFloat(_cursorIndexOfMetValue);
+            final float _tmpCaloriesBurned;
+            _tmpCaloriesBurned = _cursor.getFloat(_cursorIndexOfCaloriesBurned);
+            final String _tmpIntensity;
+            if (_cursor.isNull(_cursorIndexOfIntensity)) {
+              _tmpIntensity = null;
+            } else {
+              _tmpIntensity = _cursor.getString(_cursorIndexOfIntensity);
+            }
+            final String _tmpSource;
+            _tmpSource = _cursor.getString(_cursorIndexOfSource);
+            final float _tmpConfidence;
+            _tmpConfidence = _cursor.getFloat(_cursorIndexOfConfidence);
+            final int _tmpDisplayOrder;
+            _tmpDisplayOrder = _cursor.getInt(_cursorIndexOfDisplayOrder);
+            final boolean _tmpIsManual;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsManual);
+            _tmpIsManual = _tmp != 0;
+            final long _tmpAnalysisRevision;
+            _tmpAnalysisRevision = _cursor.getLong(_cursorIndexOfAnalysisRevision);
+            final String _tmpPendingSuggestionJson;
+            if (_cursor.isNull(_cursorIndexOfPendingSuggestionJson)) {
+              _tmpPendingSuggestionJson = null;
+            } else {
+              _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
+            }
+            _item = new ExerciseItemEntity(_tmpId,_tmpEntryId,_tmpActivityName,_tmpDurationMinutes,_tmpMetValue,_tmpCaloriesBurned,_tmpIntensity,_tmpSource,_tmpConfidence,_tmpDisplayOrder,_tmpIsManual,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
   @NonNull
   public static List<Class<?>> getRequiredConverters() {
     return Collections.emptyList();
@@ -774,7 +905,7 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
       return;
     }
     final StringBuilder _stringBuilder = StringUtil.newStringBuilder();
-    _stringBuilder.append("SELECT `id`,`entryId`,`activityName`,`durationMinutes`,`metValue`,`caloriesBurned`,`intensity`,`source`,`confidence`,`displayOrder` FROM `exercise_items` WHERE `entryId` IN (");
+    _stringBuilder.append("SELECT `id`,`entryId`,`activityName`,`durationMinutes`,`metValue`,`caloriesBurned`,`intensity`,`source`,`confidence`,`displayOrder`,`isManual`,`analysisRevision`,`pendingSuggestionJson` FROM `exercise_items` WHERE `entryId` IN (");
     final int _inputSize = _map.size();
     StringUtil.appendPlaceholders(_stringBuilder, _inputSize);
     _stringBuilder.append(")");
@@ -803,6 +934,9 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
       final int _cursorIndexOfSource = 7;
       final int _cursorIndexOfConfidence = 8;
       final int _cursorIndexOfDisplayOrder = 9;
+      final int _cursorIndexOfIsManual = 10;
+      final int _cursorIndexOfAnalysisRevision = 11;
+      final int _cursorIndexOfPendingSuggestionJson = 12;
       while (_cursor.moveToNext()) {
         final long _tmpKey;
         _tmpKey = _cursor.getLong(_itemKeyIndex);
@@ -833,7 +967,19 @@ public final class ExerciseEntryDao_Impl implements ExerciseEntryDao {
           _tmpConfidence = _cursor.getFloat(_cursorIndexOfConfidence);
           final int _tmpDisplayOrder;
           _tmpDisplayOrder = _cursor.getInt(_cursorIndexOfDisplayOrder);
-          _item_1 = new ExerciseItemEntity(_tmpId,_tmpEntryId,_tmpActivityName,_tmpDurationMinutes,_tmpMetValue,_tmpCaloriesBurned,_tmpIntensity,_tmpSource,_tmpConfidence,_tmpDisplayOrder);
+          final boolean _tmpIsManual;
+          final int _tmp;
+          _tmp = _cursor.getInt(_cursorIndexOfIsManual);
+          _tmpIsManual = _tmp != 0;
+          final long _tmpAnalysisRevision;
+          _tmpAnalysisRevision = _cursor.getLong(_cursorIndexOfAnalysisRevision);
+          final String _tmpPendingSuggestionJson;
+          if (_cursor.isNull(_cursorIndexOfPendingSuggestionJson)) {
+            _tmpPendingSuggestionJson = null;
+          } else {
+            _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
+          }
+          _item_1 = new ExerciseItemEntity(_tmpId,_tmpEntryId,_tmpActivityName,_tmpDurationMinutes,_tmpMetValue,_tmpCaloriesBurned,_tmpIntensity,_tmpSource,_tmpConfidence,_tmpDisplayOrder,_tmpIsManual,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
           _tmpRelation.add(_item_1);
         }
       }

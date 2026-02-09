@@ -191,23 +191,7 @@ fun TrackyCaloriesProgress(
 
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.XS))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Goal: ${goal.toSmartString()} kcal",
-                style = TrackyTypography.LabelSmall,
-                color = TrackyColors.TextTertiary
-            )
-            if (burned > 0) {
-                Text(
-                    text = "+${burned.toSmartString()} burned",
-                    style = TrackyTypography.LabelSmall,
-                    color = TrackyColors.Success
-                )
-            }
-        }
+
     }
 }
 

@@ -119,6 +119,7 @@ fun OnboardingScreen(
                     currentWeightKg = uiState.currentWeightKg,
                     targetWeightKg = uiState.targetWeightKg,
                     bmi = uiState.bmi,
+                    targetBmi = uiState.targetBmi,
                     unitPreference = uiState.unitPreference,
                     onHeightChanged = viewModel::setHeightCm,
                     onCurrentWeightChanged = viewModel::setCurrentWeightKg,
@@ -260,6 +261,7 @@ private fun ProfileStep(
     currentWeightKg: Float,
     targetWeightKg: Float,
     bmi: Float,
+    targetBmi: Float,
     unitPreference: UnitPreference,
     onHeightChanged: (Float) -> Unit,
     onCurrentWeightChanged: (Float) -> Unit,
@@ -340,6 +342,42 @@ private fun ProfileStep(
                         TrackyBodySmall(
                             text = bmiClassification.label,
                             color = bmiColor
+                        )
+                    }
+                }
+            }
+        }
+
+        if (targetBmi > 0) {
+            val targetBmiClassification = UserProfile.getBmiClassification(targetBmi)
+            val targetBmiColor = when (targetBmiClassification) {
+                BmiClassification.UNKNOWN -> TrackyColors.TextTertiary
+                BmiClassification.UNDERWEIGHT -> TrackyColors.Warning
+                BmiClassification.NORMAL -> TrackyColors.Success
+                BmiClassification.OVERWEIGHT -> TrackyColors.Warning
+                BmiClassification.OBESE_CLASS_1,
+                BmiClassification.OBESE_CLASS_2,
+                BmiClassification.OBESE_CLASS_3 -> TrackyColors.Error
+            }
+
+            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+            TrackyInfoCard(
+                containerColor = targetBmiColor.copy(alpha = 0.1f),
+                borderColor = targetBmiColor.copy(alpha = 0.2f)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TrackyBodyText(text = "Target BMI")
+                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                        TrackyBodyText(
+                            text = String.format("%.1f", targetBmi),
+                            color = targetBmiColor
+                        )
+                        TrackyBodySmall(
+                            text = targetBmiClassification.label,
+                            color = targetBmiColor
                         )
                     }
                 }

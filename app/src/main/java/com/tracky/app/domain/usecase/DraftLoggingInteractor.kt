@@ -35,7 +35,7 @@ import kotlinx.coroutines.coroutineScope
 
 sealed class DraftState {
     data object Idle : DraftState()
-    data object Drafting : DraftState()
+    data class Drafting(val date: LocalDate) : DraftState()
     data class FoodDraft(val data: DraftData.FoodDraft) : DraftState()
     data class ExerciseDraft(val data: DraftData.ExerciseDraft) : DraftState()
     data class Error(val message: String) : DraftState()
@@ -62,8 +62,18 @@ class DraftLoggingInteractor @Inject constructor(
         return text.lowercase().replaceFirstChar { it.uppercase() }
     }
 
+    private fun parseIntensityFromText(text: String): ExerciseIntensity? {
+        val lower = text.lowercase()
+        return when {
+            Regex("\\b(high|vigorous|intense|hard)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> ExerciseIntensity.HIGH
+            Regex("\\b(moderate|medium|average)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> ExerciseIntensity.MODERATE
+            Regex("\\b(low|light|easy|gentle)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> ExerciseIntensity.LOW
+            else -> null
+        }
+    }
+
     suspend fun draftFoodFromText(text: String, date: LocalDate) {
-        _draftState.value = DraftState.Drafting
+        _draftState.value = DraftState.Drafting(date)
         try {
             val profile = profileRepository.getProfileOnce()
             val userWeightKg = profile?.currentWeightKg ?: 70f
@@ -108,7 +118,7 @@ class DraftLoggingInteractor @Inject constructor(
     }
 
     suspend fun draftFoodFromImage(imageBase64: String, date: LocalDate) {
-        _draftState.value = DraftState.Drafting
+        _draftState.value = DraftState.Drafting(date)
         try {
             val profile = profileRepository.getProfileOnce()
             val userWeightKg = profile?.currentWeightKg ?: 70f
@@ -179,7 +189,7 @@ class DraftLoggingInteractor @Inject constructor(
     }
 
     suspend fun draftExerciseFromText(text: String, date: LocalDate) {
-        _draftState.value = DraftState.Drafting
+        _draftState.value = DraftState.Drafting(date)
         try {
             val profile = profileRepository.getProfileOnce()
             val userWeightKg = profile?.currentWeightKg ?: 70f
@@ -187,13 +197,14 @@ class DraftLoggingInteractor @Inject constructor(
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body != null && body.exercises.isNotEmpty()) {
+                    val localIntensity = parseIntensityFromText(text)
                     val draftItems = body.exercises.map { parsed ->
                         DraftExerciseItem(
                             activity = sentenceCase(parsed.activity),
                             durationMinutes = parsed.durationMinutes,
                             metValue = 0f,
                             caloriesBurned = 0f,
-                            intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
+                            intensity = localIntensity ?: ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
                             resolved = false
                         )
                     }
@@ -213,7 +224,7 @@ class DraftLoggingInteractor @Inject constructor(
     }
 
     suspend fun draftExerciseFromImage(imageBase64: String, date: LocalDate) {
-        _draftState.value = DraftState.Drafting
+        _draftState.value = DraftState.Drafting(date)
         try {
             val profile = profileRepository.getProfileOnce()
             val userWeightKg = profile?.currentWeightKg ?: 70f
@@ -270,10 +281,33 @@ class DraftLoggingInteractor @Inject constructor(
                             if (response.isSuccessful) {
                                 val body = response.body()
                                 if (body != null) {
+                                    var met = body.metValue ?: 0f
+                                    var calories = body.caloriesBurned?.toFloat() ?: 0f
+                                    val resolved = body.resolved
+                                    
+                                    // Adjust for intensity if resolved and we have a valid MET
+                                    if (resolved && met > 0) {
+                                        // Helper to adjust MET
+                                        fun getFactor(i: ExerciseIntensity): Float = when(i) {
+                                            ExerciseIntensity.LOW -> 0.7f
+                                            ExerciseIntensity.MODERATE -> 1.0f
+                                            ExerciseIntensity.HIGH -> 1.4f
+                                        }
+                                        
+                                        // Backend assumes Moderate for lookup usually. 
+                                        // If local intensity is different, we adjust the returned MET.
+                                        if (item.intensity != ExerciseIntensity.MODERATE) {
+                                            val factor = getFactor(item.intensity)
+                                            met *= factor
+                                            // Recalculate calories: (MET * 3.5 * weight * mins) / 200
+                                            calories = (met * 3.5f * userWeightKg * item.durationMinutes) / 200f
+                                        }
+                                    }
+
                                     item.copy(
-                                        caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
-                                        metValue = body.metValue ?: 0f,
-                                        resolved = body.resolved
+                                        caloriesBurned = calories,
+                                        metValue = met,
+                                        resolved = resolved
                                     )
                                 } else item
                             } else item
@@ -295,7 +329,7 @@ class DraftLoggingInteractor @Inject constructor(
     }
 
     suspend fun draftAutoFromText(text: String, date: LocalDate) {
-        _draftState.value = DraftState.Drafting
+        _draftState.value = DraftState.Drafting(date)
         try {
             val profile = profileRepository.getProfileOnce()
             val userWeightKg = profile?.currentWeightKg ?: 70f
@@ -330,13 +364,14 @@ class DraftLoggingInteractor @Inject constructor(
                         _draftState.value = DraftState.FoodDraft(foodDraft)
                         resolveFoodDraft(foodDraft)
                     } else if (body.entry_type == "exercise") {
+                        val localIntensity = parseIntensityFromText(text)
                         val draftItems = body.exercises.map { parsed ->
                             DraftExerciseItem(
                                 activity = sentenceCase(parsed.activity),
                                 durationMinutes = parsed.durationMinutes,
                                 metValue = 0f,
                                 caloriesBurned = 0f,
-                                intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
+                                intensity = localIntensity ?: ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
                                 resolved = false
                             )
                         }
@@ -359,7 +394,7 @@ class DraftLoggingInteractor @Inject constructor(
     }
 
     suspend fun draftAutoFromImage(imageBase64: String, date: LocalDate) {
-        _draftState.value = DraftState.Drafting
+        _draftState.value = DraftState.Drafting(date)
         try {
             val profile = profileRepository.getProfileOnce()
             val userWeightKg = profile?.currentWeightKg ?: 70f
@@ -442,7 +477,8 @@ class DraftLoggingInteractor @Inject constructor(
                     proteinG = item.proteinG,
                     fatG = item.fatG,
                     provenance = item.provenance,
-                    displayOrder = index
+                    displayOrder = index,
+                    isManualMacros = item.isManualMacros
                 )
             }
             
@@ -487,7 +523,8 @@ class DraftLoggingInteractor @Inject constructor(
                     caloriesBurned = item.caloriesBurned,
                     intensity = item.intensity,
                     provenance = Provenance(ProvenanceSource.DATASET, null, 1.0f),
-                    displayOrder = index
+                    displayOrder = index,
+                    isManual = item.isManual
                 )
             }
             
@@ -516,24 +553,74 @@ class DraftLoggingInteractor @Inject constructor(
         _draftState.value = DraftState.Idle
     }
 
-    fun updateFoodDraftItem(draftId: Long, index: Int, name: String, quantity: Double, unit: String) {
+    fun updateFoodDraftItem(
+        draftId: Long, 
+        index: Int, 
+        name: String, 
+        quantity: Double, 
+        unit: String,
+        calories: Float? = null,
+        carbs: Float? = null,
+        protein: Float? = null,
+        fat: Float? = null,
+        isManual: Boolean = false
+    ) {
         val current = _draftState.value
         if (current is DraftState.FoodDraft) {
             val items = current.data.items.toMutableList()
             if (index in items.indices) {
-                items[index] = items[index].copy(name = sentenceCase(name), quantity = quantity, unit = unit)
-                _draftState.value = DraftState.FoodDraft(current.data.copy(items = items))
+                // Keep existing values if new ones are null
+                val currentItem = items[index]
+                items[index] = currentItem.copy(
+                    name = sentenceCase(name), 
+                    quantity = quantity, 
+                    unit = unit,
+                    calories = calories ?: currentItem.calories,
+                    carbsG = carbs ?: currentItem.carbsG,
+                    proteinG = protein ?: currentItem.proteinG,
+                    fatG = fat ?: currentItem.fatG,
+                    isManualMacros = isManual
+                )
+                // Recalculate totals
+                val newDraft = current.data.copy(
+                    items = items,
+                    totalCalories = items.sumOf { it.calories.toDouble() }.toFloat(),
+                    totalCarbsG = items.sumOf { it.carbsG.toDouble() }.toFloat(),
+                    totalProteinG = items.sumOf { it.proteinG.toDouble() }.toFloat(),
+                    totalFatG = items.sumOf { it.fatG.toDouble() }.toFloat()
+                )
+                _draftState.value = DraftState.FoodDraft(newDraft)
             }
         }
     }
 
-    fun updateExerciseDraftItem(draftId: Long, index: Int, activity: String, durationMinutes: Int) {
+    fun updateExerciseDraftItem(
+        draftId: Long, 
+        index: Int, 
+        activity: String, 
+        durationMinutes: Int,
+        intensity: ExerciseIntensity? = null,
+        calories: Float? = null,
+        isManual: Boolean = false
+    ) {
         val current = _draftState.value
         if (current is DraftState.ExerciseDraft) {
             val items = current.data.items.toMutableList()
             if (index in items.indices) {
-                items[index] = items[index].copy(activity = sentenceCase(activity), durationMinutes = durationMinutes)
-                _draftState.value = DraftState.ExerciseDraft(current.data.copy(items = items))
+                val currentItem = items[index]
+                items[index] = currentItem.copy(
+                    activity = sentenceCase(activity), 
+                    durationMinutes = durationMinutes,
+                    intensity = intensity ?: currentItem.intensity,
+                    caloriesBurned = calories ?: currentItem.caloriesBurned,
+                    isManual = isManual
+                )
+                val newDraft = current.data.copy(
+                    items = items,
+                    totalCalories = items.map { it.caloriesBurned }.sum(),
+                    totalDurationMinutes = items.sumOf { it.durationMinutes }
+                )
+                _draftState.value = DraftState.ExerciseDraft(newDraft)
             }
         }
     }

@@ -46,6 +46,7 @@ import com.tracky.app.ui.theme.TrackyTokens
 fun EntryActionsSheet(
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
+    onReanalyze: () -> Unit,
 
     onChangeDateTime: () -> Unit,
     onDelete: () -> Unit
@@ -65,7 +66,15 @@ fun EntryActionsSheet(
             )
 
 
-
+            ActionItem(
+                icon = Icons.Outlined.Tune, // Using Tune as "Re-analyze" icon or Refresh/AutoAwesome
+                label = "Re-analyze Entry",
+                onClick = {
+                    onDismiss()
+                    // Delay slightly to allow dismiss animation? No, standard callback.
+                    onReanalyze()
+                }
+            )
             ActionItem(
                 icon = Icons.Outlined.CalendarToday,
                 label = "Change Date/Time",

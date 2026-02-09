@@ -35,6 +35,11 @@ class UserPreferencesDataStore @Inject constructor(
         val TIMEZONE = stringPreferencesKey("timezone")
         val DARK_MODE_ENABLED = booleanPreferencesKey("dark_mode_enabled")
         val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
+        val STREAK_STATE_JSON = stringPreferencesKey("streak_state_json")
+        val LAST_GRACE_DATE = stringPreferencesKey("last_grace_date")
+        val HOME_TIMEZONE = stringPreferencesKey("home_timezone")
+        val STREAK_LAST_ANIMATED_COUNT = androidx.datastore.preferences.core.intPreferencesKey("streak_last_animated_count")
+        val STREAK_LAST_ANIMATED_DATE = stringPreferencesKey("streak_last_animated_date")
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -123,6 +128,60 @@ class UserPreferencesDataStore @Inject constructor(
     suspend fun setHapticsEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[Keys.HAPTICS_ENABLED] = enabled
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Streak State
+    // ─────────────────────────────────────────────────────────────────────────
+
+    val streakStateJson: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.STREAK_STATE_JSON]
+    }
+
+    suspend fun setStreakStateJson(json: String) {
+        dataStore.edit { preferences ->
+            preferences[Keys.STREAK_STATE_JSON] = json
+        }
+    }
+
+    val lastGraceDate: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.LAST_GRACE_DATE]
+    }
+
+    suspend fun setLastGraceDate(date: String) {
+        dataStore.edit { preferences ->
+            preferences[Keys.LAST_GRACE_DATE] = date
+        }
+    }
+
+    val homeTimezone: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.HOME_TIMEZONE]
+    }
+
+    suspend fun setHomeTimezone(timezone: String) {
+        dataStore.edit { preferences ->
+            preferences[Keys.HOME_TIMEZONE] = timezone
+        }
+    }
+
+    val streakLastAnimatedCount: Flow<Int> = dataStore.data.map { preferences ->
+        preferences[Keys.STREAK_LAST_ANIMATED_COUNT] ?: -1
+    }
+
+    suspend fun setStreakLastAnimatedCount(count: Int) {
+        dataStore.edit { preferences ->
+            preferences[Keys.STREAK_LAST_ANIMATED_COUNT] = count
+        }
+    }
+
+    val streakLastAnimatedDate: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.STREAK_LAST_ANIMATED_DATE]
+    }
+
+    suspend fun setStreakLastAnimatedDate(date: String) {
+        dataStore.edit { preferences ->
+            preferences[Keys.STREAK_LAST_ANIMATED_DATE] = date
         }
     }
 

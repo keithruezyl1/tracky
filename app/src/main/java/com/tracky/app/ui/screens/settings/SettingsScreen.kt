@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -44,6 +48,7 @@ import com.tracky.app.ui.theme.TrackyTokens
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
+    onNavigateToFeatures: () -> Unit,
     onResetComplete: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -101,7 +106,16 @@ fun SettingsScreen(
         topBar = {
             TrackyTopBarWithBack(
                 title = "Settings",
-                onBackClick = onNavigateBack
+                onBackClick = onNavigateBack,
+                actions = {
+                    IconButton(onClick = onNavigateToFeatures) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
+                            contentDescription = "Features",
+                            tint = TrackyColors.TextPrimary
+                        )
+                    }
+                }
             )
         }
     ) { paddingValues ->
@@ -170,7 +184,7 @@ fun SettingsScreen(
             TrackySectionTitle(text = "About")
 
             TrackyCard {
-                SettingsRow("Version", "4.0")
+                SettingsRow("Version", "5.0.0")
             }
 
             // Reset section

@@ -276,6 +276,10 @@ Rules:
 5. If calories are shown in the screenshot, use that value (high confidence)
 6. If calories NOT shown, leave null (we'll calculate it using MET values)
 7. Identify the activity type accurately (e.g., "walking", "running", "cycling")
+8. INFER INTENSITY from metrics:
+   - low: Pulse/HR < 100bpm, or walking pace > 12:00/km (or < 3mph), or "cool down", "stretch"
+   - moderate: Pulse/HR 100-140bpm, or walking pace 9:00-11:00/km, or "active", "normal"
+   - high: Pulse/HR > 140bpm, or sprinting, or running pace < 5:00/km, or "intense", "peak"
 
 Return ONLY valid JSON in this format:
 {
@@ -285,6 +289,7 @@ Return ONLY valid JSON in this format:
       "durationMinutes": 27.6,
       "distanceKm": 2.35,
       "caloriesBurned": 115,
+      "intensity": "low" | "moderate" | "high",
       "averagePace": "11:44",
       "confidence": 0.95,
       "suggestedQueries": ["walking"]
@@ -788,7 +793,11 @@ Rules:
 2. For each exercise, determine:
    - Exact activity name (match to MET database above)
    - Duration in minutes
-   - Intensity level (if mentioned: light/moderate/vigorous)
+   - Intensity level (low, moderate, high). 
+     * INFER from adjectives: "calm", "slow", "relaxed", "stroll" -> low.
+     * "intense", "vigorous", "hard", "fast", "sprint" -> high.
+     * "brisk", "normal", "steady" -> moderate.
+     * Default to moderate only if no descriptive cues are present.
 3. DO NOT underestimate intensity - "jogging" is 7.0 MET, NOT walking (3.5 MET)
 4. If user says "running", use 9.8 MET unless they specify "slow" or "fast"
 5. Return as JSON array with exercises
@@ -891,10 +900,12 @@ Return ONLY valid JSON in this exact format (no markdown):
 
 Rules:
 - If entry_type is "food" or "mixed", include food_items array
-- If entry_type is "exercise" or "mixed", include exercises array
+- If entry_type is "exercise" or "mixed", include exercises array.
+- For intensity in exercises, categorize as low, moderate, or high based on ADJECTIVES or CONTEXT (e.g., "stroll" = low, "sprint" = high).
 - If entry_type is "none", food_items and exercises should be empty
 - Do NOT invent calorie/macro values
-- Use reasonable portion assumptions`;
+- Use reasonable portion assumptions
+`;
 
   try {
     const aiResponse = await parseWithOpenAI(env.OPENAI_API_KEY, prompt, imageBase64 || undefined);

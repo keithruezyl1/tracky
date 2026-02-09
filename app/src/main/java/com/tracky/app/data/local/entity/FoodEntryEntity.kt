@@ -170,5 +170,20 @@ data class FoodItemEntity(
      * Canonical key for exact reuse (e.g., "rice_white_cooked")
      * Added in v5
      */
-    val canonicalKey: String? = null
+    val canonicalKey: String? = null,
+
+    /**
+     * Whether macros were manually edited
+     */
+    val isManualMacros: Boolean = false,
+
+    /**
+     * Analysis revision number
+     */
+    val analysisRevision: Long = 0,
+
+    /**
+     * Pending suggestion as JSON string
+     */
+    val pendingSuggestionJson: String? = null
 )

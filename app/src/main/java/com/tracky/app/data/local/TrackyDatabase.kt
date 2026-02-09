@@ -14,8 +14,10 @@ import com.tracky.app.data.local.dao.FoodsDatasetDao
 import com.tracky.app.data.local.dao.SavedEntryDao
 import com.tracky.app.data.local.dao.UserProfileDao
 import com.tracky.app.data.local.dao.WeightEntryDao
+import com.tracky.app.data.local.dao.DailyLogSummaryDao
 import com.tracky.app.data.local.entity.ChatMessageEntity
 import com.tracky.app.data.local.entity.DailyGoalEntity
+import com.tracky.app.data.local.entity.DailyLogSummaryEntity
 import com.tracky.app.data.local.entity.ExerciseEntryEntity
 import com.tracky.app.data.local.entity.ExerciseItemEntity
 import com.tracky.app.data.local.entity.FoodEntryEntity
@@ -43,9 +45,10 @@ import kotlinx.coroutines.launch
         ChatMessageEntity::class,
         FoodsDatasetEntity::class,
         FoodsFtsEntity::class,
-        SynonymEntity::class
+        SynonymEntity::class,
+        DailyLogSummaryEntity::class
     ],
-    version = 5,
+    version = 7,
     exportSchema = true
 )
 abstract class TrackyDatabase : RoomDatabase() {
@@ -58,6 +61,7 @@ abstract class TrackyDatabase : RoomDatabase() {
     abstract fun savedEntryDao(): SavedEntryDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun foodsDatasetDao(): FoodsDatasetDao
+    abstract fun dailyLogSummaryDao(): DailyLogSummaryDao
 
     /**
      * Clear all user data but keep the foods dataset.
@@ -99,7 +103,7 @@ abstract class TrackyDatabase : RoomDatabase() {
                     DATABASE_NAME
                 )
                     .addCallback(DatabaseCallback())
-                    .addMigrations(MIGRATION_4_5)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
@@ -448,5 +452,20 @@ private suspend fun populateInitialFoodsDataset(dao: FoodsDatasetDao) {
 private val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE food_items ADD COLUMN canonicalKey TEXT")
+    }
+}
+
+private val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Food Items
+        try { db.execSQL("ALTER TABLE food_items ADD COLUMN isManualMacros INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
+        try { db.execSQL("ALTER TABLE food_items ADD COLUMN analysisRevision INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
+        try { db.execSQL("ALTER TABLE food_items ADD COLUMN pendingSuggestionJson TEXT") } catch (e: Exception) {}
+
+        // Exercise Items
+        try { db.execSQL("ALTER TABLE exercise_items ADD COLUMN isManual INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
+        try { db.execSQL("ALTER TABLE exercise_items ADD COLUMN analysisRevision INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
+        try { db.execSQL("ALTER TABLE exercise_items ADD COLUMN pendingSuggestionJson TEXT") } catch (e: Exception) {}
+        try { db.execSQL("ALTER TABLE exercise_items ADD COLUMN intensity TEXT") } catch (e: Exception) {}
     }
 }

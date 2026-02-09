@@ -14,6 +14,21 @@ data class ExerciseItem(
     val caloriesBurned: Float,
     val intensity: ExerciseIntensity?,
     val provenance: Provenance,
-    val confidence: Float = 1.0f, // 0.0-1.0, default to 1.0 for backward compatibility
-    val displayOrder: Int
+    val displayOrder: Int,
+    
+    /**
+     * Whether values (calories/intensity) were manually edited.
+     * If true, AI auto-reanalysis will NOT overwrite.
+     */
+    val isManual: Boolean = false,
+
+    /**
+     * Monotonic revision number for analysis.
+     */
+    val analysisRevision: Long = 0,
+
+    /**
+     * Pending suggested update from AI.
+     */
+    val pendingSuggestion: ExerciseItem? = null
 )

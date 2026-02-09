@@ -45,7 +45,10 @@ class OnboardingViewModel @Inject constructor(
             val bmi = if (state.currentWeightKg > 0 && height > 0) {
                 UserProfile.calculateBmi(state.currentWeightKg, height)
             } else 0f
-            state.copy(heightCm = height, bmi = bmi)
+            val targetBmi = if (state.targetWeightKg > 0 && height > 0) {
+                UserProfile.calculateBmi(state.targetWeightKg, height)
+            } else 0f
+            state.copy(heightCm = height, bmi = bmi, targetBmi = targetBmi)
         }
     }
 
@@ -59,7 +62,12 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun setTargetWeightKg(weight: Float) {
-        _uiState.update { it.copy(targetWeightKg = weight) }
+        _uiState.update { state ->
+            val targetBmi = if (weight > 0 && state.heightCm > 0) {
+                UserProfile.calculateBmi(weight, state.heightCm)
+            } else 0f
+            state.copy(targetWeightKg = weight, targetBmi = targetBmi)
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -191,6 +199,7 @@ data class OnboardingUiState(
     val currentWeightKg: Float = 0f,
     val targetWeightKg: Float = 0f,
     val bmi: Float = 0f,
+    val targetBmi: Float = 0f,
     
     // Step 3: Daily Goals
     val calorieGoalKcal: Float = 2000f,

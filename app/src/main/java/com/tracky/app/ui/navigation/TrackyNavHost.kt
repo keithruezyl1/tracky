@@ -17,6 +17,7 @@ import com.tracky.app.ui.screens.entrydetail.EntryDetailScreen
 import com.tracky.app.ui.screens.saved.SavedEntriesScreen
 import com.tracky.app.ui.screens.settings.SettingsScreen
 import com.tracky.app.ui.screens.summary.SummaryScreen
+import com.tracky.app.ui.screens.features.FeaturesScreen
 
 /**
  * Navigation routes
@@ -31,6 +32,7 @@ object TrackyRoutes {
     const val SAVED_ENTRIES = "saved_entries"
     const val SETTINGS = "settings"
     const val SUMMARY = "summary"
+    const val FEATURES = "features"
 
     fun entryDetail(entryId: Long, entryType: String) = "entry_detail/$entryId/$entryType"
 }
@@ -147,6 +149,14 @@ fun TrackyNavHost(
                 },
                 onEntryDeleted = {
                     navController.popBackStack()
+                },
+                onReanalyze = { query, id, type ->
+                    navController.previousBackStackEntry?.savedStateHandle?.let { handle ->
+                        handle.set("reanalyze_query", query)
+                        handle.set("reanalyze_id", id)
+                        handle.set("reanalyze_type", type)
+                    }
+                    navController.popBackStack()
                 }
             )
         }
@@ -183,6 +193,25 @@ fun TrackyNavHost(
                     navController.navigate(TrackyRoutes.ONBOARDING) {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                onNavigateToFeatures = {
+                    navController.navigate(TrackyRoutes.FEATURES)
+                }
+            )
+        }
+
+
+        // Features Screen
+        composable(
+            route = TrackyRoutes.FEATURES,
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { -it }) },
+            popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) },
+            popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
+        ) {
+            FeaturesScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

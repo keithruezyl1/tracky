@@ -81,42 +81,59 @@ class EntryDetailViewModel @Inject constructor(
     fun updateFoodEntry(entry: FoodEntry) {
         viewModelScope.launch {
             try {
-                // When user manually edits an entry (via Edit sheet), 
-                // we should preserve their changes as-is instead of re-resolving.
-                // Re-resolution is only for AI analysis updates, not manual edits.
-                
                 val originalEntry = loggingRepository.getFoodEntryById(entry.id)
                 val originalItems = originalEntry?.items ?: emptyList()
+                val itemsToReanalyze = mutableListOf<Pair<Long, Long>>() // itemId, revision
 
                 val updatedItems = entry.items.map { item ->
                     val originalItem = originalItems.find { it.id == item.id }
                     
-                    // Check if critical fields have changed
-                    val hasChanged = originalItem == null || // New item
-                        originalItem.name != item.name ||
-                        originalItem.quantity != item.quantity ||
-                        originalItem.unit != item.unit ||
-                        originalItem.calories != item.calories ||
-                        originalItem.carbsG != item.carbsG ||
-                        originalItem.proteinG != item.proteinG ||
-                        originalItem.fatG != item.fatG
-
-                    if (hasChanged) {
-                        item.copy(
-                            provenance = item.provenance.copy(
-                                source = ProvenanceSource.USER_OVERRIDE,
-                                confidence = 1.0f
-                            ),
-                            // Generate/Update canonical key for exact future matching
-                            canonicalKey = canonicalKeyGenerator.generate(item.name)
-                        )
+                    if (originalItem == null) {
+                         // New item (should typically be handled by addFoodItem, but handling here for safety)
+                         item
                     } else {
-                        // Preserve original provenance if untouched
-                        item
+                         val nameChanged = originalItem.name != item.name
+                         val macrosChanged = originalItem.calories != item.calories ||
+                                            originalItem.carbsG != item.carbsG ||
+                                            originalItem.proteinG != item.proteinG ||
+                                            originalItem.fatG != item.fatG
+
+                         var newItem = item
+                         
+                         // Rule B & C: Macros changed -> Manual
+                         if (macrosChanged) {
+                             newItem = newItem.copy(isManualMacros = true)
+                         }
+
+                         // Rule A & B: Name changed -> Increment revision, trigger analysis
+                         if (nameChanged) {
+                             val newRevision = originalItem.analysisRevision + 1
+                             newItem = newItem.copy(
+                                 analysisRevision = newRevision,
+                                 // If macros didn't change (Rule A), we might want to reset manual flag? 
+                                 // Requirement: "Rule A — Name changed, macros NOT changed -> overwrite macros"
+                                 // So if macros didn't change *in this edit*, we trust the name change implies a desire for new macros.
+                                 // But if it was ALREADY manual from a PREVIOUS edit?
+                                 // "If you manually edit macros... AI will never automatically overwrite"
+                                 // So if name changes, we should probably keep isManualMacros=true from previous, BUT strictly speaking,
+                                 // changing name usually means "I am changing the food", so I expect new macros.
+                                 // Let's reset isManualMacros if name changes AND user didn't touch macros *in this specific edit*.
+                                 // However, detecting "in this specific edit" is hard if we only compare entry vs original.
+                                 // If macrosChanged is false, then user didn't touch macros *now*.
+                                 // So if nameChanged AND !macrosChanged -> set isManualMacros = false (allow overwrite).
+                                 isManualMacros = if (macrosChanged) true else false,
+                                 pendingSuggestion = null // Clear old suggestion
+                             )
+                             itemsToReanalyze.add(newItem.id to newRevision)
+                         }
+                         
+                         newItem.copy(
+                            canonicalKey = if (nameChanged) canonicalKeyGenerator.generate(newItem.name) else newItem.canonicalKey
+                         )
                     }
                 }
             
-                // Recalculate totals from items
+                // Recalculate totals
                 val totalCalories = updatedItems.sumOf { it.calories.toDouble() }.toFloat()
                 val totalCarbs = updatedItems.sumOf { it.carbsG.toDouble() }.toFloat()
                 val totalProtein = updatedItems.sumOf { it.proteinG.toDouble() }.toFloat()
@@ -134,8 +151,75 @@ class EntryDetailViewModel @Inject constructor(
                 loggingRepository.updateFoodEntry(updatedEntry)
                 _uiState.update { it.copy(foodEntry = updatedEntry) }
 
+                // Trigger Background Re-analysis
+                itemsToReanalyze.forEach { (itemId, revision) ->
+                    reanalyzeFoodItem(entry.id, itemId, revision)
+                }
+
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    private fun reanalyzeFoodItem(entryId: Long, itemId: Long, revision: Long) {
+        viewModelScope.launch {
+            try {
+                // 1. Fetch current item info to get name (snapshot)
+                // We can't use the 'entry' passed to updateFoodEntry because we need the NAME that was just saved.
+                // We can fetch from DB or usage the state. Fetching from DB is safer.
+                val currentEntry = loggingRepository.getFoodEntryById(entryId) ?: return@launch
+                val currentItem = currentEntry.items.find { it.id == itemId } ?: return@launch
+                
+                // sanity check revision - if already moved past, abort early (optimization)
+                if (currentItem.analysisRevision != revision) return@launch
+
+                // 2. Resolve
+                val result = foodsRepository.resolveFood(currentItem.name, currentItem.quantity, currentItem.unit)
+                
+                if (result is ResolvedFoodResult.Success) {
+                    val resolved = result.foodItem
+                    
+                    // 3. Update DB (Critical Comparison)
+                    // We need to fetch AGAIN to ensure we don't overwrite user edits that happened *during* resolution
+                    val freshEntry = loggingRepository.getFoodEntryById(entryId) ?: return@launch
+                    val freshItem = freshEntry.items.find { it.id == itemId } ?: return@launch
+
+                    if (freshItem.analysisRevision == revision) {
+                        val newItem = if (!freshItem.isManualMacros) {
+                            // Rule A: Overwrite
+                            freshItem.copy(
+                                calories = resolved.calories,
+                                carbsG = resolved.carbsG,
+                                proteinG = resolved.proteinG,
+                                fatG = resolved.fatG,
+                                matchedName = resolved.matchedName,
+                                provenance = resolved.provenance
+                            )
+                        } else {
+                            // Rule B: Pending Suggestion
+                            freshItem.copy(
+                                pendingSuggestion = resolved.copy(id = freshItem.id) // Use resolved values but keep ID
+                            )
+                        }
+
+                        val newItems = freshEntry.items.map { if (it.id == itemId) newItem else it }
+                        
+                        // Recalc totals
+                        val updatedfreshEntry = freshEntry.copy(
+                            items = newItems,
+                            totalCalories = newItems.sumOf { it.calories.toDouble() }.toFloat(),
+                            totalCarbsG = newItems.sumOf { it.carbsG.toDouble() }.toFloat(),
+                            totalProteinG = newItems.sumOf { it.proteinG.toDouble() }.toFloat(),
+                            totalFatG = newItems.sumOf { it.fatG.toDouble() }.toFloat(),
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        loggingRepository.updateFoodEntry(updatedfreshEntry)
+                        _uiState.update { it.copy(foodEntry = updatedfreshEntry) }
+                    }
+                }
+            } catch (e: Exception) {
+                // Log error
             }
         }
     }
@@ -169,36 +253,65 @@ class EntryDetailViewModel @Inject constructor(
         }
     }
 
-    fun addFoodItem(name: String, quantity: Float, unit: String) {
+    fun addFoodItem(
+        name: String, 
+        quantity: Float, 
+        unit: String,
+        calories: Float? = null,
+        carbs: Float? = null,
+        protein: Float? = null,
+        fat: Float? = null
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val currentEntry = uiState.value.foodEntry ?: return@launch
                 
-                // Resolve the new item
-                val result = foodsRepository.resolveFood(name, quantity, unit)
+                // If user provided macros, we skip resolution (or resolve for name matching but use user macros)
+                val isManual = calories != null || carbs != null || protein != null || fat != null
                 
-                val newItem = when (result) {
-                    is ResolvedFoodResult.Success -> result.foodItem.copy(
+                val newItem: FoodItem
+                
+                if (isManual) {
+                    newItem = FoodItem(
                         id = 0,
-                        displayOrder = currentEntry.items.size
+                        name = name,
+                        matchedName = null,
+                        quantity = quantity,
+                        unit = unit,
+                        calories = calories ?: 0f,
+                        carbsG = carbs ?: 0f,
+                        proteinG = protein ?: 0f,
+                        fatG = fat ?: 0f,
+                        provenance = Provenance(ProvenanceSource.USER_OVERRIDE, null, 1.0f),
+                        displayOrder = currentEntry.items.size,
+                        canonicalKey = canonicalKeyGenerator.generate(name),
+                        isManualMacros = true
                     )
-                    ResolvedFoodResult.NotFound, is ResolvedFoodResult.Error -> {
-                        // Fallback handling if repository fails (though repo usually handles fallback)
-                        FoodItem(
+                } else {
+                    // Auto resolve
+                    val result = foodsRepository.resolveFood(name, quantity, unit)
+                    newItem = when (result) {
+                        is ResolvedFoodResult.Success -> result.foodItem.copy(
                             id = 0,
-                            name = name,
-                            matchedName = null,
-                            quantity = quantity,
-                            unit = unit,
-                            calories = 0f,
-                            carbsG = 0f,
-                            proteinG = 0f,
-                            fatG = 0f,
-                            provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
-                            displayOrder = currentEntry.items.size,
-                            canonicalKey = canonicalKeyGenerator.generate(name)
+                            displayOrder = currentEntry.items.size
                         )
+                        ResolvedFoodResult.NotFound, is ResolvedFoodResult.Error -> {
+                            FoodItem(
+                                id = 0,
+                                name = name,
+                                matchedName = null,
+                                quantity = quantity,
+                                unit = unit,
+                                calories = 0f,
+                                carbsG = 0f,
+                                proteinG = 0f,
+                                fatG = 0f,
+                                provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                                displayOrder = currentEntry.items.size,
+                                canonicalKey = canonicalKeyGenerator.generate(name)
+                            )
+                        }
                     }
                 }
 
@@ -232,35 +345,75 @@ class EntryDetailViewModel @Inject constructor(
     // Exercise Entry Actions
     // ─────────────────────────────────────────────────────────────────────────────
 
-    fun addExerciseItem(activityName: String, durationMinutes: Int, intensity: ExerciseIntensity = ExerciseIntensity.MODERATE) {
+    fun addExerciseItem(
+        activityName: String, 
+        durationMinutes: Int, 
+        intensity: ExerciseIntensity? = null,
+        calories: Float? = null
+    ) {
         viewModelScope.launch {
             try {
                 val currentEntry = _uiState.value.exerciseEntry ?: return@launch
                 val userWeightKg = getCurrentWeight()
                 
-                // Resolve
-                val newItem = try {
-                    val response = backendApi.resolveExercise(
-                        ResolveExerciseRequest(
-                            activity = activityName,
-                            durationMinutes = durationMinutes,
-                            userWeightKg = userWeightKg
-                        )
+                val isManual = calories != null
+                
+                val newItem: ExerciseItem
+                
+                if (isManual) {
+                     newItem = ExerciseItem(
+                        id = 0,
+                        activityName = activityName,
+                        durationMinutes = durationMinutes,
+                        metValue = 0f,
+                        caloriesBurned = calories ?: 0f,
+                        intensity = intensity,
+                        provenance = Provenance(ProvenanceSource.USER_OVERRIDE, null, 1f),
+                        displayOrder = currentEntry.items.size,
+                        isManual = true
                     )
-                    if (response.isSuccessful && response.body() != null) {
-                        val body = response.body()!!
-                        ExerciseItem(
-                            id = 0,
-                            activityName = activityName,
-                            durationMinutes = durationMinutes,
-                            metValue = body.metValue ?: 0f,
-                            caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
-                            intensity = intensity,
-                            provenance = Provenance(ProvenanceSource.DATASET, null, 1f),
-                            displayOrder = currentEntry.items.size
+                } else {
+                    // Resolve
+                    newItem = try {
+                        val activityDisplay = activityName
+                        val intensitySuffix = intensity?.let { " (${it.value})" } ?: ""
+                        val resolveActivity = if (intensity == null) activityDisplay else "$activityDisplay$intensitySuffix"
+
+                        val response = backendApi.resolveExercise(
+                            ResolveExerciseRequest(
+                                activity = resolveActivity,
+                                durationMinutes = durationMinutes,
+                                userWeightKg = userWeightKg
+                            )
                         )
-                    } else {
-                        // Fallback
+                        if (response.isSuccessful && response.body() != null) {
+                            val body = response.body()!!
+                            ExerciseItem(
+                                id = 0,
+                                activityName = activityName,
+                                durationMinutes = durationMinutes,
+                                metValue = body.metValue ?: 0f,
+                                caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
+                                intensity = intensity ?: ExerciseIntensity.MODERATE, // Default to moderate if not specified but successful? Or keep null? 
+                                // Since we auto-resolved, we can set default intensity if logic suggests. 
+                                // But better to keep what user passed or what API returned (API doesn't return intensity enum yet).
+                                provenance = Provenance(ProvenanceSource.DATASET, null, 1f),
+                                displayOrder = currentEntry.items.size
+                            )
+                        } else {
+                            // Fallback
+                             ExerciseItem(
+                                id = 0,
+                                activityName = activityName,
+                                durationMinutes = durationMinutes,
+                                metValue = 0f,
+                                caloriesBurned = 0f,
+                                intensity = intensity,
+                                provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                                displayOrder = currentEntry.items.size
+                            )
+                        }
+                    } catch (e: Exception) {
                          ExerciseItem(
                             id = 0,
                             activityName = activityName,
@@ -272,17 +425,6 @@ class EntryDetailViewModel @Inject constructor(
                             displayOrder = currentEntry.items.size
                         )
                     }
-                } catch (e: Exception) {
-                     ExerciseItem(
-                        id = 0,
-                        activityName = activityName,
-                        durationMinutes = durationMinutes,
-                        metValue = 0f,
-                        caloriesBurned = 0f,
-                        intensity = intensity,
-                        provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
-                        displayOrder = currentEntry.items.size
-                    )
                 }
 
                 val updatedItems = currentEntry.items + newItem
@@ -306,25 +448,36 @@ class EntryDetailViewModel @Inject constructor(
             try {
                 val originalEntry = loggingRepository.getExerciseEntryById(entry.id)
                 val originalItems = originalEntry?.items ?: emptyList()
-                
+                val itemsToReanalyze = mutableListOf<Pair<Long, Long>>()
+
                 val updatedItems = entry.items.map { item ->
                     val originalItem = originalItems.find { it.id == item.id }
                     
-                    // Check if critical fields have changed
-                    val hasChanged = originalItem == null || // New item
-                        originalItem.activityName != item.activityName ||
-                        originalItem.durationMinutes != item.durationMinutes ||
-                        originalItem.caloriesBurned != item.caloriesBurned
-
-                    if (hasChanged) {
-                        item.copy(
-                            provenance = item.provenance.copy(
-                                source = ProvenanceSource.USER_OVERRIDE,
-                                confidence = 1.0f
-                            )
-                        )
+                    if (originalItem == null) {
+                         item
                     } else {
-                        item
+                         val activityChanged = originalItem.activityName != item.activityName
+                         // Check manual changes (calories or intensity)
+                         val manualChanged = originalItem.caloriesBurned != item.caloriesBurned ||
+                                            originalItem.intensity != item.intensity
+
+                         var newItem = item
+                         
+                         if (manualChanged) {
+                             newItem = newItem.copy(isManual = true)
+                         }
+
+                         if (activityChanged) {
+                             val newRevision = originalItem.analysisRevision + 1
+                             newItem = newItem.copy(
+                                 analysisRevision = newRevision,
+                                 // Reset manual if name changed (assume new activity = auto unless user also edited manual fields)
+                                 isManual = if (manualChanged) true else false,
+                                 pendingSuggestion = null
+                             )
+                             itemsToReanalyze.add(newItem.id to newRevision)
+                         }
+                         newItem
                     }
                 }
 
@@ -337,8 +490,78 @@ class EntryDetailViewModel @Inject constructor(
 
                 loggingRepository.updateExerciseEntry(updatedEntry)
                 _uiState.update { it.copy(exerciseEntry = updatedEntry) }
+
+                itemsToReanalyze.forEach { (itemId, revision) ->
+                    reanalyzeExerciseItem(entry.id, itemId, revision)
+                }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    private fun reanalyzeExerciseItem(entryId: Long, itemId: Long, revision: Long) {
+        viewModelScope.launch {
+            try {
+                val currentEntry = loggingRepository.getExerciseEntryById(entryId) ?: return@launch
+                val currentItem = currentEntry.items.find { it.id == itemId } ?: return@launch
+                if (currentItem.analysisRevision != revision) return@launch
+
+                val userWeightKg = getCurrentWeight()
+                
+                // Append intensity to activity logic for resolution
+                // If user selected generic "Standard" but we have intensity enum, we can use it.
+                // Actually the backend logic (handleLogExercise) uses text.
+                // resolveExercise endpoint takes activity string.
+                // We should append intensity to string if available: e.g. "Jogging (Moderate)"
+                val activityDisplay = currentItem.activityName
+                val intensitySuffix = currentItem.intensity?.let { " (${it.value})" } ?: ""
+                val resolveActivity = if (currentItem.intensity == null) activityDisplay else "$activityDisplay$intensitySuffix"
+
+                val response = backendApi.resolveExercise(
+                    ResolveExerciseRequest(
+                        activity = resolveActivity, 
+                        durationMinutes = currentItem.durationMinutes,
+                        userWeightKg = userWeightKg
+                    )
+                )
+
+                if (response.isSuccessful) {
+                     val body = response.body()
+                     if (body != null) {
+                        val freshEntry = loggingRepository.getExerciseEntryById(entryId) ?: return@launch
+                        val freshItem = freshEntry.items.find { it.id == itemId } ?: return@launch
+
+                        if (freshItem.analysisRevision == revision) {
+                            val newItem = if (!freshItem.isManual) {
+                                freshItem.copy(
+                                    caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
+                                    metValue = body.metValue ?: 0f,
+                                    provenance = Provenance(ProvenanceSource.DATASET, null, 1f) // Or AI
+                                )
+                            } else {
+                                freshItem.copy(
+                                    pendingSuggestion = freshItem.copy(
+                                        caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
+                                        metValue = body.metValue ?: 0f
+                                    )
+                                )
+                            }
+                            
+                            val newItems = freshEntry.items.map { if (it.id == itemId) newItem else it }
+                             val updatedFreshEntry = freshEntry.copy(
+                                items = newItems,
+                                totalCalories = newItems.map { it.caloriesBurned }.sum(),
+                                totalDurationMinutes = newItems.sumOf { it.durationMinutes },
+                                updatedAt = System.currentTimeMillis()
+                            )
+                            loggingRepository.updateExerciseEntry(updatedFreshEntry)
+                            _uiState.update { it.copy(exerciseEntry = updatedFreshEntry) }
+                        }
+                     }
+                }
+            } catch (e: Exception) {
+                // Log error
             }
         }
     }
@@ -489,6 +712,100 @@ class EntryDetailViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
             }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Pending Suggestions Actions
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    fun applyFoodSuggestion(item: FoodItem) {
+        viewModelScope.launch {
+            val suggestion = item.pendingSuggestion ?: return@launch
+            val currentEntry = uiState.value.foodEntry ?: return@launch
+            
+            val updatedItems = currentEntry.items.map {
+                if (it.id == item.id) {
+                    suggestion.copy(
+                        id = item.id, // Ensure ID is preserved
+                        isManualMacros = false, // Reset manual flag since we accepted auto
+                        pendingSuggestion = null,
+                        analysisRevision = item.analysisRevision + 1
+                    )
+                } else it
+            }
+            
+            val updatedEntry = currentEntry.copy(
+                items = updatedItems,
+                totalCalories = updatedItems.sumOf { it.calories.toDouble() }.toFloat(),
+                totalCarbsG = updatedItems.sumOf { it.carbsG.toDouble() }.toFloat(),
+                totalProteinG = updatedItems.sumOf { it.proteinG.toDouble() }.toFloat(),
+                totalFatG = updatedItems.sumOf { it.fatG.toDouble() }.toFloat(),
+                updatedAt = System.currentTimeMillis()
+            )
+            
+            loggingRepository.updateFoodEntry(updatedEntry)
+            _uiState.update { it.copy(foodEntry = updatedEntry) }
+        }
+    }
+
+    fun discardFoodSuggestion(item: FoodItem) {
+        viewModelScope.launch {
+            val currentEntry = uiState.value.foodEntry ?: return@launch
+            
+            val updatedItems = currentEntry.items.map {
+                if (it.id == item.id) {
+                    it.copy(pendingSuggestion = null)
+                } else it
+            }
+            
+            val updatedEntry = currentEntry.copy(items = updatedItems)
+            loggingRepository.updateFoodEntry(updatedEntry)
+            _uiState.update { it.copy(foodEntry = updatedEntry) }
+        }
+    }
+
+    fun applyExerciseSuggestion(item: ExerciseItem) {
+        viewModelScope.launch {
+            val suggestion = item.pendingSuggestion ?: return@launch
+            val currentEntry = uiState.value.exerciseEntry ?: return@launch
+            
+            val updatedItems = currentEntry.items.map {
+                if (it.id == item.id) {
+                    suggestion.copy(
+                        id = item.id,
+                        isManual = false,
+                        pendingSuggestion = null,
+                        analysisRevision = item.analysisRevision + 1
+                    )
+                } else it
+            }
+            
+            val updatedEntry = currentEntry.copy(
+                items = updatedItems,
+                totalCalories = updatedItems.map { it.caloriesBurned }.sum(),
+                totalDurationMinutes = updatedItems.sumOf { it.durationMinutes },
+                updatedAt = System.currentTimeMillis()
+            )
+            
+            loggingRepository.updateExerciseEntry(updatedEntry)
+            _uiState.update { it.copy(exerciseEntry = updatedEntry) }
+        }
+    }
+
+    fun discardExerciseSuggestion(item: ExerciseItem) {
+        viewModelScope.launch {
+            val currentEntry = uiState.value.exerciseEntry ?: return@launch
+            
+            val updatedItems = currentEntry.items.map {
+                if (it.id == item.id) {
+                    it.copy(pendingSuggestion = null)
+                } else it
+            }
+            
+            val updatedEntry = currentEntry.copy(items = updatedItems)
+            loggingRepository.updateExerciseEntry(updatedEntry)
+            _uiState.update { it.copy(exerciseEntry = updatedEntry) }
         }
     }
 }
