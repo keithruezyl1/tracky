@@ -159,18 +159,24 @@ fun FeaturesScreen(
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.Start,
-                        verticalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XS)
+                        verticalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XXS)
                     ) {
                         Text(
-                            text = "Follow me on Facebook and LinkedIn!",
+                            text = "Follow me",
                             style = TrackyTypography.BodyLarge,
                             color = TrackyColors.TextPrimary
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.S)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XXS),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                             val iconTint = if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Black
                             
-                            androidx.compose.material3.IconButton(onClick = { uriHandler.openUri("https://www.facebook.com/sikeithni/") }) {
+                            androidx.compose.material3.IconButton(
+                                onClick = { uriHandler.openUri("https://www.facebook.com/sikeithni/") },
+                                modifier = Modifier.size(32.dp)
+                            ) {
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(id = com.tracky.app.R.drawable.ic_facebook),
                                     contentDescription = "Facebook",
@@ -178,7 +184,10 @@ fun FeaturesScreen(
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
-                            androidx.compose.material3.IconButton(onClick = { uriHandler.openUri("https://www.linkedin.com/in/keith-tagarao/") }) {
+                            androidx.compose.material3.IconButton(
+                                onClick = { uriHandler.openUri("https://www.linkedin.com/in/keith-tagarao/") },
+                                modifier = Modifier.size(32.dp)
+                            ) {
                                 Icon(
                                     painter = androidx.compose.ui.res.painterResource(id = com.tracky.app.R.drawable.ic_linkedin),
                                     contentDescription = "LinkedIn",
