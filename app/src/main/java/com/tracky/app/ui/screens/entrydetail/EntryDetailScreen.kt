@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.tracky.app.ui.components.TrackyChip
 import com.tracky.app.ui.components.TrackyBottomSheet
+import com.tracky.app.ui.components.ProvenanceLabel
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
 
@@ -471,10 +472,16 @@ private fun FoodItemRow(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     TrackyBodyText(text = item.name)
-                    TrackyBodySmall(
-                        text = "${item.quantity} ${item.unit}",
-                        color = TrackyColors.TextSecondary
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XS)
+                    ) {
+                        TrackyBodySmall(
+                            text = "${item.quantity} ${item.unit}",
+                            color = TrackyColors.TextSecondary
+                        )
+                        ProvenanceLabel(source = item.provenance.source)
+                    }
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     TrackyBodyText(text = "${item.calories} kcal")
@@ -521,11 +528,17 @@ private fun ExerciseItemRow(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     TrackyBodyText(text = item.activityName)
-                    item.intensity?.let { intensity ->
-                        TrackyBodySmall(
-                            text = intensity.value.replaceFirstChar { it.uppercase() },
-                            color = TrackyColors.TextSecondary
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XS)
+                    ) {
+                        item.intensity?.let { intensity ->
+                            TrackyBodySmall(
+                                text = intensity.value.replaceFirstChar { it.uppercase() },
+                                color = TrackyColors.TextSecondary
+                            )
+                        }
+                        ProvenanceLabel(source = item.provenance.source)
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {

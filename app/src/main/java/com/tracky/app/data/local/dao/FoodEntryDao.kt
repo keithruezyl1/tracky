@@ -121,7 +121,7 @@ interface FoodEntryDao {
         SELECT DISTINCT 
             id, foodEntryId, name, matchedName, quantity, unit, 
             calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder, canonicalKey,
-            isManualMacros, analysisRevision, pendingSuggestionJson
+            isManualMacros, analysisRevision, pendingSuggestionJson, reusedCount
         FROM food_items
         WHERE (name LIKE '%' || :query || '%' OR matchedName LIKE '%' || :query || '%')
           AND source != 'unresolved'

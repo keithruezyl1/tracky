@@ -57,6 +57,13 @@ interface ParsedFoodItem {
   quantity: number;
   unit: string;
   confidence: number;
+  calories: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  serving_grams: number | null;
+  unresolved: boolean;
+  assumptions: string[];
   suggestedQueries: string[];
 }
 
@@ -171,22 +178,27 @@ async function getFoodDetails(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// OpenAI API Integration (cost-efficient with Tracky system prompt)
+// OpenAI API Integration
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Dual-model setup: gpt-4o-mini for text (faster/smarter), gpt-4o-mini for images (vision-capable)
-const OPENAI_TEXT_MODEL = 'gpt-4o-mini';
-const OPENAI_VISION_MODEL = 'gpt-4o-mini';
+const OPENAI_TEXT_MODEL = 'gpt-4o-mini';     // Fast + cheap for text parsing
+const OPENAI_VISION_MODEL = 'gpt-4o';        // Full vision model for food images
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
-// Tracky AI System Prompt (Accuracy & Safety First)
-// Tracky AI System Prompt (Optimized for Speed & Safety)
-const TRACKY_SYSTEM_PROMPT = `You are Tracky AI, a nutrition/workout assistant. Convert input to JSON.
-1) ACCURACY: NO hallucinations. Flag unknown values as estimates/assumptions. NO medical advice.
-2) UNITS: Scale portions strictly (e.g., 3oz != 100g). Cross-check calorie triggers (~500+ kcal must be huge).
-3) PRIORITY: USDA > Common Knowledge > Estimates.
-4) STYLE: Concise, premium, no filler/emojis.
-5) FORMAT: Valid JSON only. No markdown.`;
+const TRACKY_SYSTEM_PROMPT = `You are Tracky AI, a precision nutrition and fitness tracking engine.
+
+ROLE: You are a certified nutritionist-level estimator. For every food item you identify, you MUST provide calorie and macronutrient estimates based on your training data (USDA SR, nutritionix, common nutritional databases).
+
+CORE RULES:
+1. ALWAYS return valid JSON. Never markdown, never explanations outside JSON.
+2. For food: ALWAYS estimate calories (kcal), protein (g), carbs (g), fat (g) per the stated quantity.
+3. ACCURACY: Use your knowledge of nutritional databases. Cross-reference internally:
+   - Macro-calorie check: |calories - (carbs*4 + protein*4 + fat*9)| must be < 10% of calories.
+   - Portion sanity: 1 egg ≈ 70kcal, 1 banana ≈ 105kcal, 1 cup cooked rice ≈ 200kcal, 100g chicken breast ≈ 165kcal.
+4. PORTIONS: Estimate serving_grams for the stated quantity. Note assumptions (e.g., "assumed medium banana ~120g").
+5. If you truly cannot estimate (exotic/unknown item), set "unresolved": true with null values. NEVER return 0 kcal for a known food.
+6. For exercise: Extract activity, duration, intensity. Do NOT estimate calories (we use MET calculations).
+7. STYLE: Concise, no emojis, no filler.`;
 
 async function parseWithOpenAI(
   apiKey: string,
@@ -208,7 +220,7 @@ async function parseWithOpenAI(
           type: 'image_url',
           image_url: {
             url: `data:image/jpeg;base64,${imageBase64}`,
-            detail: 'low' // Cost-efficient
+            detail: 'high' // Accurate food recognition
           }
         }
       ]
@@ -232,8 +244,9 @@ async function parseWithOpenAI(
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.2,
-      max_tokens: 800, // Cost-efficient limit
+      temperature: 0.1,
+      max_tokens: 1500,
+      response_format: { type: 'json_object' },
     }),
   });
 
@@ -559,6 +572,34 @@ function validateExerciseCalories(
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Food Item Validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Validate and clean food items from AI response.
+ * Enforces the hard output contract: non-unresolved items must have positive calories.
+ * Items with missing/zero calories are marked unresolved.
+ */
+function validateAndCleanFoodItems(items: any[]): any[] {
+  if (!Array.isArray(items)) return [];
+  return items.map(item => {
+    if (item.unresolved === true) return item;
+    // Enforce: non-unresolved items must have positive calories
+    if (!item.calories || item.calories <= 0) {
+      return {
+        ...item,
+        unresolved: true,
+        calories: null,
+        protein: null,
+        carbs: null,
+        fat: null,
+      };
+    }
+    return item;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Request Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -579,46 +620,53 @@ async function handleLogFood(
     return jsonResponse({ error: 'Either text or image is required' }, 400);
   }
 
-  // Build prompt for Gemini - parse only, no nutrition values
-  const prompt = `Parse the following ${imageBase64 ? 'food image' : 'food description'} into structured items.
+  const prompt = `${imageBase64 ? 'Analyze this food image.' : `Parse this food input: "${text}"`}
 
-${text ? `User input: "${text}"` : 'Analyze the food items visible in the image.'}
+Identify all food items and estimate nutrition for each.
 
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
+Return JSON:
 {
   "items": [
     {
-      "name": "food name (e.g., 'grilled chicken breast')",
+      "name": "grilled chicken breast",
       "quantity": 1,
-      "unit": "piece/g/oz/cup/tbsp/etc",
-      "confidence": 0.9,
+      "unit": "piece",
+      "calories": 165,
+      "protein": 31.0,
+      "carbs": 0.0,
+      "fat": 3.6,
+      "serving_grams": 120,
+      "confidence": 0.85,
+      "unresolved": false,
+      "assumptions": ["assumed medium breast ~120g"],
       "suggestedQueries": ["chicken breast", "grilled chicken"]
     }
   ],
-  "narrative": "Brief description of the meal"
+  "narrative": "Brief meal description"
 }
 
-IMPORTANT:
-- Focus on identifying foods and reasonable portions
-- Use common serving units
-- Include multiple suggestedQueries for database matching
-- If portion size is unclear, assume standard serving and note as Assumption
-- SPLIT separate items (e.g. 'chicken and rice') into separate objects in the items array`;
+RULES:
+- Split compound items ("chicken and rice" -> 2 items)
+- Estimate nutrition per the stated quantity and unit
+- If portion unclear, assume standard serving and note in assumptions
+- Self-check: (carbs*4 + protein*4 + fat*9) within 10% of calories
+- If unable to estimate nutrition, set unresolved=true with null values
+- Common references: 1 egg=70kcal, 1 cup cooked rice=200kcal, 1 banana=105kcal`;
 
   try {
     const aiResponse = await parseWithOpenAI(env.OPENAI_API_KEY, prompt, imageBase64 || undefined);
 
-    // Parse the JSON response
     const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return jsonResponse({ error: 'Failed to parse AI response' }, 500);
     }
 
     const result = JSON.parse(jsonMatch[0]);
+    const validatedItems = validateAndCleanFoodItems(result.items || []);
 
     return jsonResponse({
       status: 'draft',
-      items: result.items || [],
+      items: validatedItems,
       narrative: result.narrative || '',
       requiresConfirmation: true,
     });
@@ -870,22 +918,28 @@ async function handleLogAuto(
     return jsonResponse({ error: 'Either text or image is required' }, 400);
   }
 
-  // Build prompt for auto-detection
-  const prompt = `You are Tracky AI, a nutrition and exercise logging assistant.
+  const prompt = `${imageBase64 ? 'Analyze this image.' : `User input: "${text}"`}
 
-${imageBase64 ? 'Analyze this image.' : `User input: "${text}"`}
+Determine if this is food, exercise, mixed, or none. For food items, estimate full nutrition.
 
-Determine if this input describes:
-- "food": eating, meals, snacks, drinks, ingredients
-- "exercise": workouts, physical activities, sports, steps, walking, running
-- "mixed": contains both food AND exercise
-- "none": neither food nor exercise (greetings, questions, irrelevant)
-
-Return ONLY valid JSON in this exact format (no markdown):
+Return JSON:
 {
-  "entry_type": "food" | "exercise" | "mixed" | "none",
+  "entry_type": "food",
   "food_items": [
-    { "name": "item name", "quantity": 1, "unit": "serving", "confidence": 0.9, "suggestedQueries": ["query1"] }
+    {
+      "name": "item name",
+      "quantity": 1,
+      "unit": "serving",
+      "calories": 250,
+      "protein": 15.0,
+      "carbs": 30.0,
+      "fat": 8.0,
+      "serving_grams": 150,
+      "confidence": 0.85,
+      "unresolved": false,
+      "assumptions": ["assumed standard serving"],
+      "suggestedQueries": ["query1"]
+    }
   ],
   "exercises": [
     {
@@ -898,14 +952,14 @@ Return ONLY valid JSON in this exact format (no markdown):
   "narrative": "Brief description"
 }
 
-Rules:
-- If entry_type is "food" or "mixed", include food_items array
-- If entry_type is "exercise" or "mixed", include exercises array.
-- For intensity in exercises, categorize as low, moderate, or high based on ADJECTIVES or CONTEXT (e.g., "stroll" = low, "sprint" = high).
-- If entry_type is "none", food_items and exercises should be empty
-- Do NOT invent calorie/macro values
-- Use reasonable portion assumptions
-`;
+RULES:
+- entry_type: "food" | "exercise" | "mixed" | "none"
+- If food: MUST include calories + protein + carbs + fat per item
+- If exercise: include activity + duration + intensity (no calorie estimates)
+- If none: empty arrays
+- Self-check: (carbs*4 + protein*4 + fat*9) within 10% of calories
+- If unable to estimate nutrition for a food, set unresolved=true with null values
+- For intensity in exercises: "stroll" = low, "sprint" = high, default = moderate`;
 
   try {
     const aiResponse = await parseWithOpenAI(env.OPENAI_API_KEY, prompt, imageBase64 || undefined);
@@ -916,12 +970,13 @@ Rules:
     }
 
     const result = JSON.parse(jsonMatch[0]);
+    const validatedFoodItems = validateAndCleanFoodItems(result.food_items || []);
 
     return jsonResponse({
       status: 'draft',
       entry_type: result.entry_type || 'none',
-      food_items: result.food_items || [],
-      exercises: result.exercises || [], // Changed from single exercise object to list
+      food_items: validatedFoodItems,
+      exercises: result.exercises || [],
       narrative: result.narrative || '',
       requiresConfirmation: true,
     });

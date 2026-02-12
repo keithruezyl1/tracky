@@ -1,71 +1,72 @@
 package com.tracky.app.data.repository
 
 import com.tracky.app.data.local.dao.FoodsDatasetDao
-import com.tracky.app.data.local.entity.FoodsDatasetEntity
-import com.tracky.app.data.remote.TrackyBackendApi
-import com.tracky.app.data.remote.dto.FoodCandidateDto
-import com.tracky.app.data.remote.dto.ResolveFoodRequest
-import com.tracky.app.data.remote.dto.ResolvedFoodItemDto
 import com.tracky.app.domain.model.FoodItem
+import com.tracky.app.domain.model.MacroReconciler
 import com.tracky.app.domain.model.Provenance
 import com.tracky.app.domain.model.ProvenanceSource
+import com.tracky.app.domain.resolver.CanonicalKeyGenerator
+import com.tracky.app.domain.resolver.FoodResolutionConfig
+import com.tracky.app.domain.resolver.UserHistoryResolver
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Repository for food resolution with prioritized sources
+ * Repository for food resolution — AI-first model.
+ *
+ * Resolution priority:
+ * 1. USER_OVERRIDE (Manual) anchors — always skip AI
+ * 2. Local Dataset (curated) — always skip AI
+ * 3. High-reuse Saved items (AI_ESTIMATE/USER_HISTORY with reusedCount >= threshold) — skip AI
+ * 4. AI Estimation fallback — use structured output from GPT-4o mini (via log/auto endpoint)
+ *
+ * USDA and Internet resolution have been removed.
  */
 @Singleton
 class FoodsRepository @Inject constructor(
     private val foodsDatasetDao: FoodsDatasetDao,
-    private val backendApi: TrackyBackendApi,
-    private val userHistoryResolver: com.tracky.app.domain.resolver.UserHistoryResolver,
-    private val canonicalKeyGenerator: com.tracky.app.domain.resolver.CanonicalKeyGenerator
+    private val userHistoryResolver: UserHistoryResolver,
+    private val canonicalKeyGenerator: CanonicalKeyGenerator
 ) {
-    // ... (existing methods)
 
-    private fun ResolvedFoodItemDto.toFoodItem(
-        originalName: String,
-        originalQuantity: Float,
-        originalUnit: String
-    ): FoodItem {
-        return FoodItem(
-            name = originalName,
-            matchedName = matchedName,
-            quantity = originalQuantity,
-            unit = originalUnit,
-            calories = calories?.toFloat() ?: 0f,
-            carbsG = carbs ?: 0f,
-            proteinG = protein ?: 0f,
-            fatG = fat ?: 0f,
-            provenance = Provenance(
-                source = ProvenanceSource.fromValue(source),
-                sourceId = fdcId?.toString(),
-                confidence = confidence
-            ),
-            displayOrder = 0,
-            canonicalKey = canonicalKeyGenerator.generate(originalName) // Generate strict key
-        )
-    }
+    /**
+     * Resolve a food item to nutrition data using the eligibility-gated flywheel.
+     *
+     * @param name Food name from AI parsing step
+     * @param quantity Parsed quantity
+     * @param unit Parsed unit
+     * @param aiCalories Optional: AI-estimated calories (from log/auto response)
+     * @param aiCarbsG Optional: AI-estimated carbs
+     * @param aiProteinG Optional: AI-estimated protein
+     * @param aiFatG Optional: AI-estimated fat
+     */
+    suspend fun resolveFood(
+        name: String,
+        quantity: Float,
+        unit: String,
+        aiCalories: Float? = null,
+        aiCarbsG: Float? = null,
+        aiProteinG: Float? = null,
+        aiFatG: Float? = null
+    ): ResolvedFoodResult {
+        val canonicalKey = canonicalKeyGenerator.generate(name)
 
-    // This is a placeholder for where the new code would logically fit based on the instruction.
-    // Assuming there's a method like `resolveFood` that returns `ResolvedFoodResult`.
-    // The provided snippet seems to be a part of such a method's logic.
-    // For the purpose of this edit, I will insert it as a new method to demonstrate the change.
-    // In a real scenario, this would be integrated into an existing resolution method.
-    suspend fun resolveFood(name: String, quantity: Float, unit: String): ResolvedFoodResult {
-        // Step 1: Trusted User History (Exact/User Override)
+        // ─── Step 1: Trusted User History (USER_OVERRIDE / Manual) ───
         val trustedMatch = userHistoryResolver.findTrustedMatch(name, quantity, unit)
-        if (trustedMatch != null) {
-            return ResolvedFoodResult.Success(trustedMatch)
+        if (trustedMatch != null && trustedMatch.isEligibleForAnchorReuse()) {
+            return ResolvedFoodResult.Success(
+                trustedMatch.copy(
+                    provenance = trustedMatch.provenance.copy(
+                        reusedCount = trustedMatch.provenance.reusedCount + 1
+                    )
+                )
+            )
         }
 
-        // Step 2: Local Dataset (FoodsDataset)
+        // ─── Step 2: Local Dataset (curated) ───
         val localCandidates = foodsDatasetDao.searchFoods(name, limit = 1)
         if (localCandidates.isNotEmpty()) {
             val entity = localCandidates.first()
-            
-            // Simple unit compatibility check
             if (entity.servingUnit.equals(unit, ignoreCase = true)) {
                 val ratio = quantity / entity.servingSize
                 val localItem = FoodItem(
@@ -80,51 +81,55 @@ class FoodsRepository @Inject constructor(
                     provenance = Provenance(
                         source = ProvenanceSource.DATASET,
                         sourceId = entity.id.toString(),
-                        confidence = 1.0f // Local dataset is trusted source
+                        confidence = 1.0f
                     ),
                     displayOrder = 0,
-                    canonicalKey = canonicalKeyGenerator.generate(entity.name)
+                    canonicalKey = canonicalKey
                 )
                 return ResolvedFoodResult.Success(localItem)
             }
-            // If units differ, we skip local for now and let backend handle conversion
         }
 
-        // Step 3: High Confidence History (USDA/Dataset reuse)
+        // ─── Step 3: High-Reuse Saved History (AI_ESTIMATE/USER_HISTORY with enough reusedCount) ───
         val historyMatch = userHistoryResolver.findHighConfidenceMatch(name, quantity, unit)
-        if (historyMatch != null) {
-            return ResolvedFoodResult.Success(historyMatch)
+        if (historyMatch != null && historyMatch.isEligibleForAnchorReuse(FoodResolutionConfig.REUSE_COUNT_THRESHOLD)) {
+            // Check if AI data is available and conflicts with stored values
+            val pendingSuggestion = if (aiCalories != null && aiCalories > 0f) {
+                val conflictRatio = kotlin.math.abs(aiCalories - historyMatch.calories) / historyMatch.calories
+                if (conflictRatio > FoodResolutionConfig.SUGGESTION_CONFLICT_THRESHOLD) {
+                    // AI disagrees — store as pending suggestion, do NOT overwrite
+                    buildAiItem(name, quantity, unit, aiCalories, aiCarbsG, aiProteinG, aiFatG, canonicalKey)
+                } else null
+            } else null
+
+            return ResolvedFoodResult.Success(
+                historyMatch.copy(
+                    provenance = historyMatch.provenance.copy(
+                        reusedCount = historyMatch.provenance.reusedCount + 1
+                    ),
+                    pendingSuggestion = pendingSuggestion
+                )
+            )
         }
 
-        // Step 4: Remote Backend Resolution (Gemini/USDA/SerpAPI)
-        try {
-            val request = ResolveFoodRequest(
-                candidates = listOf(
-                    FoodCandidateDto(
-                        name = name,
-                        quantity = quantity,
-                        unit = unit
+        // ─── Step 4: AI Estimation (GPT-4o mini output) ───
+        if (aiCalories != null && aiCalories > 0f) {
+            val aiItem = buildAiItem(name, quantity, unit, aiCalories, aiCarbsG, aiProteinG, aiFatG, canonicalKey)
+            return ResolvedFoodResult.Success(aiItem)
+        }
+
+        // ─── Step 5: Low-reuse history (not yet eligible for anchor, but better than unresolved) ───
+        if (historyMatch != null) {
+            return ResolvedFoodResult.Success(
+                historyMatch.copy(
+                    provenance = historyMatch.provenance.copy(
+                        reusedCount = historyMatch.provenance.reusedCount + 1
                     )
                 )
             )
-            val response = backendApi.resolveFood(request)
-
-            if (response.isSuccessful && response.body() != null) {
-                val body = response.body()!!
-                // We typically get a list, take the best one
-                if (body.items.isNotEmpty()) {
-                    val best = body.items.first()
-                    return ResolvedFoodResult.Success(
-                        best.toFoodItem(name, quantity, unit)
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            // Log error, continue to fallback
         }
 
-        // Step 5: Unresolved fallback case
-        // If no resolution is found, return a 0-kcal item with provenance=UNRESOLVED
+        // ─── Step 6: Unresolved fallback ───
         return ResolvedFoodResult.Success(
             FoodItem(
                 name = name,
@@ -141,8 +146,53 @@ class FoodsRepository @Inject constructor(
                     confidence = 0f
                 ),
                 displayOrder = 0,
-                canonicalKey = canonicalKeyGenerator.generate(name) // Always set canonical key
+                canonicalKey = canonicalKey
             )
+        )
+    }
+
+    /**
+     * Build a FoodItem from AI estimation, with macro reconciliation applied.
+     */
+    private fun buildAiItem(
+        name: String,
+        quantity: Float,
+        unit: String,
+        aiCalories: Float,
+        aiCarbsG: Float?,
+        aiProteinG: Float?,
+        aiFatG: Float?,
+        canonicalKey: String
+    ): FoodItem {
+        var carbs = aiCarbsG ?: 0f
+        var protein = aiProteinG ?: 0f
+        var fat = aiFatG ?: 0f
+
+        // AUTO reconciliation: scale macros to match declared calories
+        if (MacroReconciler.isMismatch(aiCalories, carbs, protein, fat)) {
+            val (rc, rp, rf) = MacroReconciler.reconcile(aiCalories, carbs, protein, fat)
+            carbs = rc
+            protein = rp
+            fat = rf
+        }
+
+        return FoodItem(
+            name = name,
+            matchedName = null,
+            quantity = quantity,
+            unit = unit,
+            calories = aiCalories,
+            carbsG = carbs,
+            proteinG = protein,
+            fatG = fat,
+            provenance = Provenance(
+                source = ProvenanceSource.AI_ESTIMATE,
+                sourceId = null,
+                confidence = 0.7f, // AI baseline confidence
+                reusedCount = 0
+            ),
+            displayOrder = 0,
+            canonicalKey = canonicalKey
         )
     }
 }

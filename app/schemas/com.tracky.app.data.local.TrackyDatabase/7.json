@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 7,
-    "identityHash": "eac08e74f5b85aff9155812d21c98bf3",
+    "identityHash": "2445abae5234fc15503874329ac6866c",
     "entities": [
       {
         "tableName": "user_profile",
@@ -269,7 +269,7 @@
       },
       {
         "tableName": "food_items",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `foodEntryId` INTEGER NOT NULL, `name` TEXT NOT NULL, `matchedName` TEXT, `quantity` REAL NOT NULL, `unit` TEXT NOT NULL, `calories` REAL NOT NULL, `carbsG` REAL NOT NULL, `proteinG` REAL NOT NULL, `fatG` REAL NOT NULL, `source` TEXT NOT NULL, `sourceId` TEXT, `confidence` REAL NOT NULL, `displayOrder` INTEGER NOT NULL, `canonicalKey` TEXT, `isManualMacros` INTEGER NOT NULL, `analysisRevision` INTEGER NOT NULL, `pendingSuggestionJson` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `foodEntryId` INTEGER NOT NULL, `name` TEXT NOT NULL, `matchedName` TEXT, `quantity` REAL NOT NULL, `unit` TEXT NOT NULL, `calories` REAL NOT NULL, `carbsG` REAL NOT NULL, `proteinG` REAL NOT NULL, `fatG` REAL NOT NULL, `source` TEXT NOT NULL, `sourceId` TEXT, `confidence` REAL NOT NULL, `displayOrder` INTEGER NOT NULL, `canonicalKey` TEXT, `isManualMacros` INTEGER NOT NULL, `analysisRevision` INTEGER NOT NULL, `pendingSuggestionJson` TEXT, `isReconciled` INTEGER NOT NULL, `reusedCount` INTEGER NOT NULL, `confidenceScore` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -378,6 +378,24 @@
             "columnName": "pendingSuggestionJson",
             "affinity": "TEXT",
             "notNull": false
+          },
+          {
+            "fieldPath": "isReconciled",
+            "columnName": "isReconciled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reusedCount",
+            "columnName": "reusedCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confidenceScore",
+            "columnName": "confidenceScore",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -1098,7 +1116,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'eac08e74f5b85aff9155812d21c98bf3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2445abae5234fc15503874329ac6866c')"
     ]
   }
 }

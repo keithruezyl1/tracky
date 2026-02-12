@@ -28,7 +28,12 @@ data class ParsedFoodItemDto(
     val quantity: Float = 1f,
     val unit: String = "serving",
     val confidence: Float = 0.5f,
-    val suggestedQueries: List<String> = emptyList()
+    val suggestedQueries: List<String> = emptyList(),
+    val calories: Float? = null,
+    val protein: Float? = null,
+    val carbs: Float? = null,
+    val fat: Float? = null,
+    val unresolved: Boolean? = null
 )
 
 // ─────────────────────────────────────────────────────────────────────────────

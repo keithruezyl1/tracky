@@ -45,7 +45,7 @@
 ### Backend (Serverless)
 *   **Platform**: Cloudflare Workers (TypeScript)
 *   **AI**: Gemini Pro / GPT-4o-mini (Text & Vision)
-*   **Data**: USDA FoodData Central API
+*   **Data**: AI-first
 *   **Cache**: Workers KV
 
 ---
@@ -70,7 +70,7 @@ Tracky/
 ## 🚀 Getting Started
 
 ### Android App
-1.  **Clone the repo**: `git clone https://github.com/keithruezyl1/tracky.git`
+1.  **Clone the repo**: `git clone https://github.com/keithruezyl1 /tracky.git`
 2.  **Open** in Android Studio Ladybug or newer.
 3.  **Sync** Gradle project.
 4.  **Configure**: Update `BACKEND_URL` in `app/build.gradle.kts` if deploying your own backend.
@@ -82,7 +82,7 @@ Tracky/
 3.  **Secrets Setup**:
     ```bash
     wrangler secret put GEMINI_API_KEY
-    wrangler secret put USDA_API_KEY
+    wrangler secret put AI_FIRST_API_KEY
     ```
 4.  **Deploy**: `npm run deploy`
 

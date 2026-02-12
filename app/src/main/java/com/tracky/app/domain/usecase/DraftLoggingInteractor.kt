@@ -87,12 +87,15 @@ class DraftLoggingInteractor @Inject constructor(
                             matchedName = null,
                             quantity = dto.quantity.toDouble(),
                             unit = dto.unit,
-                            calories = 0f,
-                            carbsG = 0f,
-                            proteinG = 0f,
-                            fatG = 0f,
-                            provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
-                            resolved = false
+                            calories = dto.calories ?: 0f,
+                            carbsG = dto.carbs ?: 0f,
+                            proteinG = dto.protein ?: 0f,
+                            fatG = dto.fat ?: 0f,
+                            provenance = if (dto.calories != null && dto.calories > 0f)
+                                Provenance(ProvenanceSource.AI_ESTIMATE, null, dto.confidence)
+                            else
+                                Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                            resolved = dto.calories != null && dto.calories > 0f
                         )
                     }
                     val foodDraft = DraftData.FoodDraft(
@@ -132,12 +135,15 @@ class DraftLoggingInteractor @Inject constructor(
                             matchedName = null,
                             quantity = dto.quantity.toDouble(),
                             unit = dto.unit,
-                            calories = 0f,
-                            carbsG = 0f,
-                            proteinG = 0f,
-                            fatG = 0f,
-                            provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
-                            resolved = false
+                            calories = dto.calories ?: 0f,
+                            carbsG = dto.carbs ?: 0f,
+                            proteinG = dto.protein ?: 0f,
+                            fatG = dto.fat ?: 0f,
+                            provenance = if (dto.calories != null && dto.calories > 0f)
+                                Provenance(ProvenanceSource.AI_ESTIMATE, null, dto.confidence)
+                            else
+                                Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                            resolved = dto.calories != null && dto.calories > 0f
                         )
                     }
                     val foodDraft = DraftData.FoodDraft(
@@ -160,7 +166,15 @@ class DraftLoggingInteractor @Inject constructor(
 
     private suspend fun resolveFoodDraft(draft: DraftData.FoodDraft) {
         val resolvedItems = draft.items.map { item ->
-            val result = foodsRepository.resolveFood(item.name, item.quantity.toFloat(), item.unit)
+            val result = foodsRepository.resolveFood(
+                name = item.name,
+                quantity = item.quantity.toFloat(),
+                unit = item.unit,
+                aiCalories = item.calories.takeIf { it > 0f },
+                aiCarbsG = item.carbsG.takeIf { it > 0f },
+                aiProteinG = item.proteinG.takeIf { it > 0f },
+                aiFatG = item.fatG.takeIf { it > 0f }
+            )
             when (result) {
                 is ResolvedFoodResult.Success -> {
                     val food = result.foodItem
@@ -344,12 +358,15 @@ class DraftLoggingInteractor @Inject constructor(
                                 matchedName = null,
                                 quantity = dto.quantity.toDouble(),
                                 unit = dto.unit,
-                                calories = 0f,
-                                carbsG = 0f,
-                                proteinG = 0f,
-                                fatG = 0f,
-                                provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
-                                resolved = false
+                                calories = dto.calories ?: 0f,
+                                carbsG = dto.carbs ?: 0f,
+                                proteinG = dto.protein ?: 0f,
+                                fatG = dto.fat ?: 0f,
+                                provenance = if (dto.calories != null && dto.calories > 0f)
+                                    Provenance(ProvenanceSource.AI_ESTIMATE, null, dto.confidence)
+                                else
+                                    Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                                resolved = dto.calories != null && dto.calories > 0f
                             )
                         }
                         val foodDraft = DraftData.FoodDraft(
@@ -409,12 +426,15 @@ class DraftLoggingInteractor @Inject constructor(
                                 matchedName = null,
                                 quantity = dto.quantity.toDouble(),
                                 unit = dto.unit,
-                                calories = 0f,
-                                carbsG = 0f,
-                                proteinG = 0f,
-                                fatG = 0f,
-                                provenance = Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
-                                resolved = false
+                                calories = dto.calories ?: 0f,
+                                carbsG = dto.carbs ?: 0f,
+                                proteinG = dto.protein ?: 0f,
+                                fatG = dto.fat ?: 0f,
+                                provenance = if (dto.calories != null && dto.calories > 0f)
+                                    Provenance(ProvenanceSource.AI_ESTIMATE, null, dto.confidence)
+                                else
+                                    Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                                resolved = dto.calories != null && dto.calories > 0f
                             )
                         }
                         val foodDraft = DraftData.FoodDraft(

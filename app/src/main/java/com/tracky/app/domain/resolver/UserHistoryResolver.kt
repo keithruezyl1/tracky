@@ -53,8 +53,8 @@ class UserHistoryResolver @Inject constructor(
     }
 
     /**
-     * Find a high-confidence match from user history (Source = USDA/Dataset).
-     * Reuses past successful resolutions.
+     * Find a high-confidence match from user history (Saved items).
+     * Includes AI_ESTIMATE, USER_HISTORY, and DATASET sources.
      */
     suspend fun findHighConfidenceMatch(query: String, requestedQuantity: Float, requestedUnit: String): FoodItem? {
         val canonicalQuery = canonicalKeyGenerator.generate(query)
@@ -62,16 +62,18 @@ class UserHistoryResolver @Inject constructor(
 
         val candidates = foodEntryDao.searchUserHistory(query, limit = 50)
             .filter { 
-                it.source == ProvenanceSource.USDA_FDC.value || 
-                it.source == ProvenanceSource.DATASET.value 
+                it.source == ProvenanceSource.AI_ESTIMATE.value ||
+                it.source == ProvenanceSource.USER_HISTORY.value ||
+                it.source == ProvenanceSource.DATASET.value ||
+                it.source == ProvenanceSource.USDA_FDC.value // Legacy compat
             }
             .map { it.toDomain() }
-            .filter { it.isValidForReuse(minConfidence = FoodResolutionConfig.USDA_MIN_CONFIDENCE) }
+            .filter { it.isValidForReuse(minConfidence = FoodResolutionConfig.HISTORY_MIN_REUSE_CONFIDENCE) }
 
-        // Hybrid Matcher for USDA items
+        // Hybrid Matcher
         val bestMatch = candidates
             .map { item -> item to computeMatchScore(normalizedQuery, canonicalQuery, item) }
-            .filter { it.second >= FoodResolutionConfig.HISTORY_MIN_REUSE_CONFIDENCE } // Match quality must still be high
+            .filter { it.second >= FoodResolutionConfig.HISTORY_MIN_REUSE_CONFIDENCE }
             .maxByOrNull { it.second }
             ?.first
 

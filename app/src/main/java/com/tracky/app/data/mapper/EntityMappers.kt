@@ -143,7 +143,8 @@ fun FoodItemEntity.toDomain(): FoodItem = FoodItem(
     provenance = Provenance(
         source = ProvenanceSource.fromValue(source),
         sourceId = sourceId,
-        confidence = confidence
+        confidence = confidence,
+        reusedCount = reusedCount
     ),
     displayOrder = displayOrder,
     canonicalKey = canonicalKey,
@@ -177,7 +178,8 @@ fun FoodItem.toEntity(foodEntryId: Long): FoodItemEntity {
         canonicalKey = canonicalKey,
         isManualMacros = isManualMacros,
         analysisRevision = analysisRevision,
-        pendingSuggestionJson = pendingSuggestion?.let { Json.encodeToString(it) }
+        pendingSuggestionJson = pendingSuggestion?.let { Json.encodeToString(it) },
+        reusedCount = provenance.reusedCount
     )
 }
 

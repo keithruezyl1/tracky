@@ -17,7 +17,7 @@
 * **Local database:** SQLite via **Room** (+ **FTS** for dataset-first search)
 * **Backend:** **Cloudflare Workers** (TypeScript) as thin proxy/orchestrator
 * **LLM:** **OpenAI** (text + vision)
-* **Food fallback:** USDA FoodData Central API
+* **Food fallback:** AI-first
 * **Exercise dataset:** MET values (Compendium-based)
 * **Charts:** Vico (Compose-native)
 * **Images/camera:** CameraX + Coil
@@ -143,7 +143,7 @@ Optional animations:
 Backend integrates:
 
 * OpenAI API
-* USDA FoodData Central API
+* AI-first Food Analysis
 
 ---
 
@@ -338,7 +338,7 @@ Macros card:
 ### 5.1 Policy (hard rule)
 
 1. local dataset
-2. USDA FDC fallback
+2. AI-first fallback
 3. other online sources only if explicitly approved later
 
 ### 5.2 OpenAI responsibilities
@@ -351,13 +351,13 @@ Macros card:
 
 * match foods/exercises against local dataset via FTS
 * compute calories/macros deterministically
-* only call USDA if dataset misses
+* only call AI if dataset misses
 
 ### 5.4 Provenance tracking (required)
 
 Each item stores:
 
-* source: dataset | usda_fdc | user_override
+* source: dataset | ai_first | user_override
 * matched label/id
 * confidence
 
@@ -365,9 +365,9 @@ Each item stores:
 
 ## 6) Food estimation engine
 
-### 6.1 Primary online fallback: USDA FoodData Central
+### 6.1 Primary online fallback: AI-first
 
-* Use API endpoints `/foods/search` and `/food/{fdcId}`
+* Use AI-first resolution for broader food recognition
 * Cache results in Worker KV
 
 ### 6.2 Portion handling
@@ -459,7 +459,7 @@ Calories burned:
 * BMI computed correctly
 * Draft confirmation required for all AI logs
 * Dataset-first resolution enforced
-* USDA fallback works when dataset misses
+* AI-first fallback works when dataset misses
 * Weight chart + time ranges function correctly
 
 ---

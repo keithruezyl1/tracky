@@ -185,5 +185,10 @@ data class FoodItemEntity(
     /**
      * Pending suggestion as JSON string
      */
-    val pendingSuggestionJson: String? = null
+    val pendingSuggestionJson: String? = null,
+
+    /**
+     * Number of times this item has been reused from history
+     */
+    val reusedCount: Int = 0
 )

@@ -101,7 +101,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR ABORT INTO `food_items` (`id`,`foodEntryId`,`name`,`matchedName`,`quantity`,`unit`,`calories`,`carbsG`,`proteinG`,`fatG`,`source`,`sourceId`,`confidence`,`displayOrder`,`canonicalKey`,`isManualMacros`,`analysisRevision`,`pendingSuggestionJson`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR ABORT INTO `food_items` (`id`,`foodEntryId`,`name`,`matchedName`,`quantity`,`unit`,`calories`,`carbsG`,`proteinG`,`fatG`,`source`,`sourceId`,`confidence`,`displayOrder`,`canonicalKey`,`isManualMacros`,`analysisRevision`,`pendingSuggestionJson`,`reusedCount`) VALUES (nullif(?, 0),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -142,6 +142,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
         } else {
           statement.bindString(18, entity.getPendingSuggestionJson());
         }
+        statement.bindLong(19, entity.getReusedCount());
       }
     };
     this.__deletionAdapterOfFoodEntryEntity = new EntityDeletionOrUpdateAdapter<FoodEntryEntity>(__db) {
@@ -212,7 +213,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `food_items` SET `id` = ?,`foodEntryId` = ?,`name` = ?,`matchedName` = ?,`quantity` = ?,`unit` = ?,`calories` = ?,`carbsG` = ?,`proteinG` = ?,`fatG` = ?,`source` = ?,`sourceId` = ?,`confidence` = ?,`displayOrder` = ?,`canonicalKey` = ?,`isManualMacros` = ?,`analysisRevision` = ?,`pendingSuggestionJson` = ? WHERE `id` = ?";
+        return "UPDATE OR ABORT `food_items` SET `id` = ?,`foodEntryId` = ?,`name` = ?,`matchedName` = ?,`quantity` = ?,`unit` = ?,`calories` = ?,`carbsG` = ?,`proteinG` = ?,`fatG` = ?,`source` = ?,`sourceId` = ?,`confidence` = ?,`displayOrder` = ?,`canonicalKey` = ?,`isManualMacros` = ?,`analysisRevision` = ?,`pendingSuggestionJson` = ?,`reusedCount` = ? WHERE `id` = ?";
       }
 
       @Override
@@ -253,7 +254,8 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
         } else {
           statement.bindString(18, entity.getPendingSuggestionJson());
         }
-        statement.bindLong(19, entity.getId());
+        statement.bindLong(19, entity.getReusedCount());
+        statement.bindLong(20, entity.getId());
       }
     };
     this.__preparedStmtOfDeleteById = new SharedSQLiteStatement(__db) {
@@ -1115,6 +1117,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfIsManualMacros = CursorUtil.getColumnIndexOrThrow(_cursor, "isManualMacros");
           final int _cursorIndexOfAnalysisRevision = CursorUtil.getColumnIndexOrThrow(_cursor, "analysisRevision");
           final int _cursorIndexOfPendingSuggestionJson = CursorUtil.getColumnIndexOrThrow(_cursor, "pendingSuggestionJson");
+          final int _cursorIndexOfReusedCount = CursorUtil.getColumnIndexOrThrow(_cursor, "reusedCount");
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1172,7 +1175,9 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             } else {
               _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
             }
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
+            final int _tmpReusedCount;
+            _tmpReusedCount = _cursor.getInt(_cursorIndexOfReusedCount);
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson,_tmpReusedCount);
             _result.add(_item);
           }
           return _result;
@@ -1368,6 +1373,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfIsManualMacros = CursorUtil.getColumnIndexOrThrow(_cursor, "isManualMacros");
           final int _cursorIndexOfAnalysisRevision = CursorUtil.getColumnIndexOrThrow(_cursor, "analysisRevision");
           final int _cursorIndexOfPendingSuggestionJson = CursorUtil.getColumnIndexOrThrow(_cursor, "pendingSuggestionJson");
+          final int _cursorIndexOfReusedCount = CursorUtil.getColumnIndexOrThrow(_cursor, "reusedCount");
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1425,7 +1431,9 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             } else {
               _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
             }
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
+            final int _tmpReusedCount;
+            _tmpReusedCount = _cursor.getInt(_cursorIndexOfReusedCount);
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson,_tmpReusedCount);
             _result.add(_item);
           }
           return _result;
@@ -1473,6 +1481,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfIsManualMacros = CursorUtil.getColumnIndexOrThrow(_cursor, "isManualMacros");
           final int _cursorIndexOfAnalysisRevision = CursorUtil.getColumnIndexOrThrow(_cursor, "analysisRevision");
           final int _cursorIndexOfPendingSuggestionJson = CursorUtil.getColumnIndexOrThrow(_cursor, "pendingSuggestionJson");
+          final int _cursorIndexOfReusedCount = CursorUtil.getColumnIndexOrThrow(_cursor, "reusedCount");
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1530,7 +1539,9 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             } else {
               _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
             }
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
+            final int _tmpReusedCount;
+            _tmpReusedCount = _cursor.getInt(_cursorIndexOfReusedCount);
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson,_tmpReusedCount);
             _result.add(_item);
           }
           return _result;
@@ -1549,7 +1560,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             + "        SELECT DISTINCT \n"
             + "            id, foodEntryId, name, matchedName, quantity, unit, \n"
             + "            calories, carbsG, proteinG, fatG, source, sourceId, confidence, displayOrder, canonicalKey,\n"
-            + "            isManualMacros, analysisRevision, pendingSuggestionJson\n"
+            + "            isManualMacros, analysisRevision, pendingSuggestionJson, reusedCount\n"
             + "        FROM food_items\n"
             + "        WHERE (name LIKE '%' || ? || '%' OR matchedName LIKE '%' || ? || '%')\n"
             + "          AND source != 'unresolved'\n"
@@ -1588,6 +1599,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           final int _cursorIndexOfIsManualMacros = 15;
           final int _cursorIndexOfAnalysisRevision = 16;
           final int _cursorIndexOfPendingSuggestionJson = 17;
+          final int _cursorIndexOfReusedCount = 18;
           final List<FoodItemEntity> _result = new ArrayList<FoodItemEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final FoodItemEntity _item;
@@ -1645,7 +1657,9 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
             } else {
               _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
             }
-            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
+            final int _tmpReusedCount;
+            _tmpReusedCount = _cursor.getInt(_cursorIndexOfReusedCount);
+            _item = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson,_tmpReusedCount);
             _result.add(_item);
           }
           return _result;
@@ -1675,7 +1689,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
       return;
     }
     final StringBuilder _stringBuilder = StringUtil.newStringBuilder();
-    _stringBuilder.append("SELECT `id`,`foodEntryId`,`name`,`matchedName`,`quantity`,`unit`,`calories`,`carbsG`,`proteinG`,`fatG`,`source`,`sourceId`,`confidence`,`displayOrder`,`canonicalKey`,`isManualMacros`,`analysisRevision`,`pendingSuggestionJson` FROM `food_items` WHERE `foodEntryId` IN (");
+    _stringBuilder.append("SELECT `id`,`foodEntryId`,`name`,`matchedName`,`quantity`,`unit`,`calories`,`carbsG`,`proteinG`,`fatG`,`source`,`sourceId`,`confidence`,`displayOrder`,`canonicalKey`,`isManualMacros`,`analysisRevision`,`pendingSuggestionJson`,`reusedCount` FROM `food_items` WHERE `foodEntryId` IN (");
     final int _inputSize = _map.size();
     StringUtil.appendPlaceholders(_stringBuilder, _inputSize);
     _stringBuilder.append(")");
@@ -1712,6 +1726,7 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
       final int _cursorIndexOfIsManualMacros = 15;
       final int _cursorIndexOfAnalysisRevision = 16;
       final int _cursorIndexOfPendingSuggestionJson = 17;
+      final int _cursorIndexOfReusedCount = 18;
       while (_cursor.moveToNext()) {
         final long _tmpKey;
         _tmpKey = _cursor.getLong(_itemKeyIndex);
@@ -1772,7 +1787,9 @@ public final class FoodEntryDao_Impl implements FoodEntryDao {
           } else {
             _tmpPendingSuggestionJson = _cursor.getString(_cursorIndexOfPendingSuggestionJson);
           }
-          _item_1 = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson);
+          final int _tmpReusedCount;
+          _tmpReusedCount = _cursor.getInt(_cursorIndexOfReusedCount);
+          _item_1 = new FoodItemEntity(_tmpId,_tmpFoodEntryId,_tmpName,_tmpMatchedName,_tmpQuantity,_tmpUnit,_tmpCalories,_tmpCarbsG,_tmpProteinG,_tmpFatG,_tmpSource,_tmpSourceId,_tmpConfidence,_tmpDisplayOrder,_tmpCanonicalKey,_tmpIsManualMacros,_tmpAnalysisRevision,_tmpPendingSuggestionJson,_tmpReusedCount);
           _tmpRelation.add(_item_1);
         }
       }

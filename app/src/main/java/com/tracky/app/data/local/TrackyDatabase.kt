@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
         SynonymEntity::class,
         DailyLogSummaryEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class TrackyDatabase : RoomDatabase() {
@@ -103,7 +103,7 @@ abstract class TrackyDatabase : RoomDatabase() {
                     DATABASE_NAME
                 )
                     .addCallback(DatabaseCallback())
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_7_8)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
@@ -467,5 +467,11 @@ private val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
         try { db.execSQL("ALTER TABLE exercise_items ADD COLUMN analysisRevision INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
         try { db.execSQL("ALTER TABLE exercise_items ADD COLUMN pendingSuggestionJson TEXT") } catch (e: Exception) {}
         try { db.execSQL("ALTER TABLE exercise_items ADD COLUMN intensity TEXT") } catch (e: Exception) {}
+    }
+}
+
+private val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try { db.execSQL("ALTER TABLE food_items ADD COLUMN reusedCount INTEGER NOT NULL DEFAULT 0") } catch (e: Exception) {}
     }
 }

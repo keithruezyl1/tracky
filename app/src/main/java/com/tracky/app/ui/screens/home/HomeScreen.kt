@@ -129,6 +129,8 @@ import com.tracky.app.ui.components.SwipeableRow
 import com.tracky.app.ui.components.SuccessOverlay
 import com.tracky.app.ui.components.StreakIndicator
 import com.tracky.app.ui.components.StreakModalContent
+import com.tracky.app.ui.components.ProvenanceLabel
+import com.tracky.app.domain.model.ProvenanceSource
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
 import com.tracky.app.ui.theme.TrackyTypography
@@ -385,12 +387,22 @@ fun HomeScreen(
                     pageCount = { initialPageBase + 1 }
                 )
 
+                // Track animation state to prevent fighting between scroll and state updates
+                var isAnimating by remember { mutableStateOf(false) }
+
                 // 1. Sync: External Date Change (Calendar, Button) -> Pager Scroll
                 LaunchedEffect(selectedDate) {
                     val daysDiff = today.daysUntil(selectedDate)
                     val targetPage = initialPageBase + daysDiff
+                    
+                    // Only scroll if we're not already there and not currently animating via user swipe
                     if (pagerState.currentPage != targetPage && !pagerState.isScrollInProgress) {
-                        pagerState.animateScrollToPage(targetPage)
+                        isAnimating = true
+                        try {
+                            pagerState.animateScrollToPage(targetPage)
+                        } finally {
+                            isAnimating = false
+                        }
                     }
                 }
 
@@ -399,7 +411,9 @@ fun HomeScreen(
                     snapshotFlow { pagerState.currentPage }
                         .distinctUntilChanged()
                         .collect { page ->
-                            if (pagerState.isScrollInProgress) {
+                            // Only update selection during manual drags, not programmatic animations
+                            // checking isScrollInProgress ensures we update during swipes
+                            if (pagerState.isScrollInProgress && !isAnimating) {
                                 val pageDate = today.plus(page - initialPageBase, DateTimeUnit.DAY)
                                 // Just update the selected indicator, don't shift the window yet
                                 viewModel.selectDate(pageDate)
@@ -407,23 +421,32 @@ fun HomeScreen(
                         }
                 }
 
-                // 3. Sync: Pager Settle -> Handle Window Boundary Crossing
+                // 3. Sync: Pager Settle -> Handle Window Boundary Crossing & Finalize Selection
                 LaunchedEffect(pagerState) {
                     snapshotFlow { pagerState.settledPage }
                         .distinctUntilChanged()
                         .collect { page ->
-                            val pageDate = today.plus(page - initialPageBase, DateTimeUnit.DAY)
-                            val currentWeekDates = viewModel.weekDates.value
-                            
-                            // Check if the settled date is outside the current visual strip
-                            if (pageDate !in currentWeekDates) {
-                                if (pageDate < currentWeekDates.first()) {
-                                    viewModel.selectPreviousDay()
-                                } else if (pageDate > currentWeekDates.last()) {
-                                    viewModel.selectNextDay()
-                                } else {
-                                    // Extreme jump (e.g. from calendar picker far away)
-                                    viewModel.selectDateFromCalendar(pageDate)
+                            // When scrolling finishes (animation or swipe), ensure everything is synced
+                            if (!pagerState.isScrollInProgress && !isAnimating) {
+                                val pageDate = today.plus(page - initialPageBase, DateTimeUnit.DAY)
+                                
+                                // Ensure viewmodel is synced with final settled page
+                                if (selectedDate != pageDate) {
+                                    viewModel.selectDate(pageDate)
+                                }
+                                
+                                val currentWeekDates = viewModel.weekDates.value
+                                
+                                // Check if the settled date is outside the current visual strip
+                                if (pageDate !in currentWeekDates) {
+                                    if (pageDate < currentWeekDates.first()) {
+                                        viewModel.selectPreviousDay()
+                                    } else if (pageDate > currentWeekDates.last()) {
+                                        viewModel.selectNextDay()
+                                    } else {
+                                        // Extreme jump (e.g. from calendar picker far away)
+                                        viewModel.selectDateFromCalendar(pageDate)
+                                    }
                                 }
                             }
                         }
@@ -866,51 +889,54 @@ private fun CaloriesCard(
     goalCalories: Float,
     onEditGoals: () -> Unit
 ) {
-    val messageIndex = remember { kotlin.random.Random.nextInt(5) }
     val percentage = if (goalCalories > 0) (foodCalories / goalCalories) * 100f else 0f
+    
+    // Derived from percentage to be reactive, but seeded to feel somewhat random per percentage bucket
+    // We use the int value of percentage to make it stable for small fluctuations but dynamic for large changes
+    val messageIndex = (percentage.toInt() + (foodCalories.toInt() % 3)).coerceAtLeast(0) % 5
     
     val message = when {
         foodCalories <= 0f -> listOf(
-            "Still a long way to go!",
+            "Ready to start?",
             "Ready to start your day?",
-            "Let's log your first meal!",
+            "Log your first meal!",
             "Time to fuel up!",
-            "Your journey today starts now."
+            "Start your day!"
         )[messageIndex]
         percentage < 50f -> listOf(
             "Great progress!",
-            "Off to a solid start!",
-            "Keep that momentum going!",
+            "Solid start!",
+            "Keep it going!",
             "Every bite counts!",
-            "Building a healthy habit today."
+            "Building healthy habits!"
         )[messageIndex]
         percentage < 75f -> listOf(
-            "You're getting there!",
-            "Over the halfway mark!",
-            "You're doing great, keep it up!",
-            "Halfway to crushing your goal!",
-            "Steady progress wins the day."
+            "Getting there!",
+            "Over halfway!",
+            "Doing great!",
+            "Halfway there!",
+            "Steady progress!"
         )[messageIndex]
         percentage < 90f -> listOf(
-            "You're nearing your daily goals",
+            "Nearly there!",
             "Almost there!",
-            "Just a final stretch to go!",
-            "You're close to the finish line.",
-            "Goal insight – you've got this!"
+            "Final stretch!",
+            "Close to the finish!",
+            "Goal in sight!"
         )[messageIndex]
         percentage <= 100f -> listOf(
-            "Great job for today!",
-            "Mission nearly accomplished!",
-            "Perfect pacing so far!",
-            "You've balanced your day beautifully.",
-            "Goal reached (almost)!"
+            "Great job today!",
+            "Nearly done!",
+            "Perfect pacing!",
+            "Beautifully balanced!",
+            "Almost there!"
         )[messageIndex]
         else -> listOf(
-            "You're over the limit",
-            "Goal exceeded – stay mindful!",
-            "A little extra today? That's okay!",
-            "Watch your steps to balance it out.",
-            "Tomorrow is a fresh start!"
+            "Over the limit",
+            "Over goal today",
+            "A bit over—that's okay!",
+            "Balance it out tomorrow",
+            "Fresh start tomorrow!"
         )[messageIndex]
     }
 
@@ -1039,6 +1065,9 @@ private fun FoodDraftCard(
                         color = TrackyColors.TextSecondary,
                         maxLines = 1
                     )
+                    if (item.resolved) {
+                        ProvenanceLabel(source = item.provenance.source)
+                    }
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     TrackyBodySmall(text = "${item.calories.toInt()} kcal")
@@ -1199,7 +1228,10 @@ private fun FoodEntryRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
                     Icons.Outlined.Restaurant,
                     contentDescription = null,
@@ -1219,6 +1251,7 @@ private fun FoodEntryRow(
                     }
                 }
             }
+            Spacer(modifier = Modifier.width(TrackyTokens.Spacing.S))
             Column(horizontalAlignment = Alignment.End) {
                 TrackyBodyText(text = "${entry.totalCalories.toInt()} kcal")
                 TrackyBodySmall(
@@ -1241,7 +1274,10 @@ private fun ExerciseEntryRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
                     Icons.Outlined.FitnessCenter,
                     contentDescription = null,
@@ -1255,21 +1291,22 @@ private fun ExerciseEntryRow(
                         maxLines = 1
                     )
                     
-                if (entry.items.size > 1) {
-                    TrackyBodySmall(
-                        text = "+${entry.items.size - 1} more items",
-                        color = TrackyColors.TextTertiary
-                    )
-                } else {
-                    val duration = entry.totalDurationMinutes
-                    val intensity = entry.items.firstOrNull()?.intensity?.value?.replaceFirstChar { it.uppercase() } ?: "Moderate"
-                    TrackyBodySmall(
-                        text = "$duration min | $intensity",
-                        color = TrackyColors.TextTertiary
-                    )
+                    if (entry.items.size > 1) {
+                        TrackyBodySmall(
+                            text = "+${entry.items.size - 1} more items",
+                            color = TrackyColors.TextTertiary
+                        )
+                    } else {
+                        val duration = entry.totalDurationMinutes
+                        val intensity = entry.items.firstOrNull()?.intensity?.value?.replaceFirstChar { it.uppercase() } ?: "Moderate"
+                        TrackyBodySmall(
+                            text = "$duration min | $intensity",
+                            color = TrackyColors.TextTertiary
+                        )
+                    }
                 }
             }
-        }
+            Spacer(modifier = Modifier.width(TrackyTokens.Spacing.S))
             Column(horizontalAlignment = Alignment.End) {
                 TrackyBodyText(
                     text = "-${entry.totalCalories.toInt()} kcal",
@@ -1546,12 +1583,19 @@ private fun EditFoodDraftItemSheet(
 
     // Ratios for scaling
     val currentQty = item.quantity.toFloat()
+    val currentCal = item.calories
+    
     fun getRatio(value: Float): Float = if (currentQty > 0) value / currentQty else 0f
+    fun getCalRatio(value: Float): Float = if (currentCal > 0) value / currentCal else 0f
     
     val ratioCals = remember { getRatio(item.calories) }
     val ratioCarbs = remember { getRatio(item.carbsG) }
     val ratioProt = remember { getRatio(item.proteinG) }
     val ratioFat = remember { getRatio(item.fatG) }
+    
+    val ratioCarbsFromCals = remember { getCalRatio(item.carbsG) }
+    val ratioProtFromCals = remember { getCalRatio(item.proteinG) }
+    val ratioFatFromCals = remember { getCalRatio(item.fatG) }
 
     // Original values for checking if manual edit badge should show
     val originalName = remember { item.name }
@@ -1579,11 +1623,24 @@ private fun EditFoodDraftItemSheet(
     }
 
     fun updateMacrosAutomatically(newQty: Double) {
-        val q = newQty.toFloat()
-        caloriesText = kotlin.math.round(ratioCals * q).toInt().toString()
-        carbsText = kotlin.math.round(ratioCarbs * q).toInt().toString()
-        proteinText = kotlin.math.round(ratioProt * q).toInt().toString()
-        fatText = kotlin.math.round(ratioFat * q).toInt().toString()
+        // Only auto-update macros if this is an AI estimate
+        // User overrides or dataset items should NOT change ratios automatically
+        if (item.provenance.source == com.tracky.app.domain.model.ProvenanceSource.AI_ESTIMATE) {
+            val q = newQty.toFloat()
+            caloriesText = kotlin.math.round(ratioCals * q).toInt().toString()
+            carbsText = kotlin.math.round(ratioCarbs * q).toInt().toString()
+            proteinText = kotlin.math.round(ratioProt * q).toInt().toString()
+            fatText = kotlin.math.round(ratioFat * q).toInt().toString()
+        }
+    }
+    
+    fun updateMacrosFromCalories(newCals: Float) {
+        // Only auto-update from calories if this is an AI estimate
+        if (item.provenance.source == com.tracky.app.domain.model.ProvenanceSource.AI_ESTIMATE) {
+            carbsText = kotlin.math.round(ratioCarbsFromCals * newCals).toInt().toString()
+            proteinText = kotlin.math.round(ratioProtFromCals * newCals).toInt().toString()
+            fatText = kotlin.math.round(ratioFatFromCals * newCals).toInt().toString()
+        }
     }
 
     TrackyBottomSheet(
@@ -1654,7 +1711,10 @@ private fun EditFoodDraftItemSheet(
 
             com.tracky.app.ui.components.TrackyNumberInput(
                 value = caloriesText,
-                onValueChange = { caloriesText = it },
+                onValueChange = { 
+                    caloriesText = it
+                    it.toFloatOrNull()?.let { c -> updateMacrosFromCalories(c) }
+                },
                 label = "Calories",
                 suffix = "kcal",
                 allowDecimal = false

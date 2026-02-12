@@ -67,7 +67,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(7) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(8) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `user_profile` (`id` INTEGER NOT NULL, `heightCm` REAL NOT NULL, `currentWeightKg` REAL NOT NULL, `targetWeightKg` REAL NOT NULL, `unitPreference` TEXT NOT NULL, `timezone` TEXT NOT NULL, `bmi` REAL NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
@@ -76,7 +76,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
         db.execSQL("CREATE TABLE IF NOT EXISTS `food_entries` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `time` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `totalCalories` REAL NOT NULL, `totalCarbsG` REAL NOT NULL, `totalProteinG` REAL NOT NULL, `totalFatG` REAL NOT NULL, `analysisNarrative` TEXT, `photoPath` TEXT, `originalInput` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_entries_date` ON `food_entries` (`date`)");
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_entries_createdAt` ON `food_entries` (`createdAt`)");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `food_items` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `foodEntryId` INTEGER NOT NULL, `name` TEXT NOT NULL, `matchedName` TEXT, `quantity` REAL NOT NULL, `unit` TEXT NOT NULL, `calories` REAL NOT NULL, `carbsG` REAL NOT NULL, `proteinG` REAL NOT NULL, `fatG` REAL NOT NULL, `source` TEXT NOT NULL, `sourceId` TEXT, `confidence` REAL NOT NULL, `displayOrder` INTEGER NOT NULL, `canonicalKey` TEXT, `isManualMacros` INTEGER NOT NULL, `analysisRevision` INTEGER NOT NULL, `pendingSuggestionJson` TEXT)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `food_items` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `foodEntryId` INTEGER NOT NULL, `name` TEXT NOT NULL, `matchedName` TEXT, `quantity` REAL NOT NULL, `unit` TEXT NOT NULL, `calories` REAL NOT NULL, `carbsG` REAL NOT NULL, `proteinG` REAL NOT NULL, `fatG` REAL NOT NULL, `source` TEXT NOT NULL, `sourceId` TEXT, `confidence` REAL NOT NULL, `displayOrder` INTEGER NOT NULL, `canonicalKey` TEXT, `isManualMacros` INTEGER NOT NULL, `analysisRevision` INTEGER NOT NULL, `pendingSuggestionJson` TEXT, `reusedCount` INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_items_foodEntryId` ON `food_items` (`foodEntryId`)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `exercise_entries` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `time` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `totalCalories` REAL NOT NULL, `totalDurationMinutes` INTEGER NOT NULL, `userWeightKg` REAL NOT NULL, `originalInput` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `exercise_items` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `entryId` INTEGER NOT NULL, `activityName` TEXT NOT NULL, `durationMinutes` INTEGER NOT NULL, `metValue` REAL NOT NULL, `caloriesBurned` REAL NOT NULL, `intensity` TEXT, `source` TEXT NOT NULL, `confidence` REAL NOT NULL, `displayOrder` INTEGER NOT NULL, `isManual` INTEGER NOT NULL, `analysisRevision` INTEGER NOT NULL, `pendingSuggestionJson` TEXT, FOREIGN KEY(`entryId`) REFERENCES `exercise_entries`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
@@ -101,7 +101,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_synonyms_foodDatasetId` ON `food_synonyms` (`foodDatasetId`)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `daily_log_summaries` (`date` TEXT NOT NULL, `qualifyingEntriesCount` INTEGER NOT NULL, `totalCaloriesConsumed` REAL NOT NULL, `totalCaloriesBurned` REAL NOT NULL, `metGoal` INTEGER NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`date`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'eac08e74f5b85aff9155812d21c98bf3')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bd2f9b44b67e80bcb7c90545f9e3b5d9')");
       }
 
       @Override
@@ -232,7 +232,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
                   + " Expected:\n" + _infoFoodEntries + "\n"
                   + " Found:\n" + _existingFoodEntries);
         }
-        final HashMap<String, TableInfo.Column> _columnsFoodItems = new HashMap<String, TableInfo.Column>(18);
+        final HashMap<String, TableInfo.Column> _columnsFoodItems = new HashMap<String, TableInfo.Column>(19);
         _columnsFoodItems.put("id", new TableInfo.Column("id", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsFoodItems.put("foodEntryId", new TableInfo.Column("foodEntryId", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsFoodItems.put("name", new TableInfo.Column("name", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -251,6 +251,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
         _columnsFoodItems.put("isManualMacros", new TableInfo.Column("isManualMacros", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsFoodItems.put("analysisRevision", new TableInfo.Column("analysisRevision", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsFoodItems.put("pendingSuggestionJson", new TableInfo.Column("pendingSuggestionJson", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsFoodItems.put("reusedCount", new TableInfo.Column("reusedCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysFoodItems = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesFoodItems = new HashSet<TableInfo.Index>(1);
         _indicesFoodItems.add(new TableInfo.Index("index_food_items_foodEntryId", false, Arrays.asList("foodEntryId"), Arrays.asList("ASC")));
@@ -437,7 +438,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "eac08e74f5b85aff9155812d21c98bf3", "f9a7060acd8df433a6c185ebcfba6466");
+    }, "bd2f9b44b67e80bcb7c90545f9e3b5d9", "e7e6b09fe74634f38f2663a3602df205");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
