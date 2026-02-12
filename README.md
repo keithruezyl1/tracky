@@ -81,7 +81,6 @@ Tracky/
 2.  Run `npm install`.
 3.  **Secrets Setup**:
     ```bash
-    wrangler secret put GEMINI_API_KEY
     wrangler secret put AI_FIRST_API_KEY
     ```
 4.  **Deploy**: `npm run deploy`
