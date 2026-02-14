@@ -24,6 +24,8 @@ import com.tracky.app.data.local.dao.FoodEntryDao;
 import com.tracky.app.data.local.dao.FoodEntryDao_Impl;
 import com.tracky.app.data.local.dao.FoodsDatasetDao;
 import com.tracky.app.data.local.dao.FoodsDatasetDao_Impl;
+import com.tracky.app.data.local.dao.ReanalysisBackupDao;
+import com.tracky.app.data.local.dao.ReanalysisBackupDao_Impl;
 import com.tracky.app.data.local.dao.SavedEntryDao;
 import com.tracky.app.data.local.dao.SavedEntryDao_Impl;
 import com.tracky.app.data.local.dao.UserProfileDao;
@@ -64,10 +66,12 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
 
   private volatile DailyLogSummaryDao _dailyLogSummaryDao;
 
+  private volatile ReanalysisBackupDao _reanalysisBackupDao;
+
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(8) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(9) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `user_profile` (`id` INTEGER NOT NULL, `heightCm` REAL NOT NULL, `currentWeightKg` REAL NOT NULL, `targetWeightKg` REAL NOT NULL, `unitPreference` TEXT NOT NULL, `timezone` TEXT NOT NULL, `bmi` REAL NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
@@ -100,8 +104,9 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_synonyms_synonym` ON `food_synonyms` (`synonym`)");
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_synonyms_foodDatasetId` ON `food_synonyms` (`foodDatasetId`)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `daily_log_summaries` (`date` TEXT NOT NULL, `qualifyingEntriesCount` INTEGER NOT NULL, `totalCaloriesConsumed` REAL NOT NULL, `totalCaloriesBurned` REAL NOT NULL, `metGoal` INTEGER NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`date`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `reanalysis_backups` (`originalEntryId` INTEGER NOT NULL, `type` TEXT NOT NULL, `dataJson` TEXT NOT NULL, `date` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`originalEntryId`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bd2f9b44b67e80bcb7c90545f9e3b5d9')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b0b66bb4a90ceec524ce51ebce06d81e')");
       }
 
       @Override
@@ -119,6 +124,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
         db.execSQL("DROP TABLE IF EXISTS `foods_fts`");
         db.execSQL("DROP TABLE IF EXISTS `food_synonyms`");
         db.execSQL("DROP TABLE IF EXISTS `daily_log_summaries`");
+        db.execSQL("DROP TABLE IF EXISTS `reanalysis_backups`");
         final List<? extends RoomDatabase.Callback> _callbacks = mCallbacks;
         if (_callbacks != null) {
           for (RoomDatabase.Callback _callback : _callbacks) {
@@ -436,9 +442,24 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
                   + " Expected:\n" + _infoDailyLogSummaries + "\n"
                   + " Found:\n" + _existingDailyLogSummaries);
         }
+        final HashMap<String, TableInfo.Column> _columnsReanalysisBackups = new HashMap<String, TableInfo.Column>(5);
+        _columnsReanalysisBackups.put("originalEntryId", new TableInfo.Column("originalEntryId", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsReanalysisBackups.put("type", new TableInfo.Column("type", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsReanalysisBackups.put("dataJson", new TableInfo.Column("dataJson", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsReanalysisBackups.put("date", new TableInfo.Column("date", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsReanalysisBackups.put("createdAt", new TableInfo.Column("createdAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysReanalysisBackups = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesReanalysisBackups = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoReanalysisBackups = new TableInfo("reanalysis_backups", _columnsReanalysisBackups, _foreignKeysReanalysisBackups, _indicesReanalysisBackups);
+        final TableInfo _existingReanalysisBackups = TableInfo.read(db, "reanalysis_backups");
+        if (!_infoReanalysisBackups.equals(_existingReanalysisBackups)) {
+          return new RoomOpenHelper.ValidationResult(false, "reanalysis_backups(com.tracky.app.data.local.entity.ReanalysisBackupEntity).\n"
+                  + " Expected:\n" + _infoReanalysisBackups + "\n"
+                  + " Found:\n" + _existingReanalysisBackups);
+        }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "bd2f9b44b67e80bcb7c90545f9e3b5d9", "e7e6b09fe74634f38f2663a3602df205");
+    }, "b0b66bb4a90ceec524ce51ebce06d81e", "f29dd30dab6014116de6ea067b305aef");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
@@ -450,7 +471,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
     final HashMap<String, String> _shadowTablesMap = new HashMap<String, String>(1);
     _shadowTablesMap.put("foods_fts", "foods_dataset");
     final HashMap<String, Set<String>> _viewTables = new HashMap<String, Set<String>>(0);
-    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "user_profile","daily_goals","food_entries","food_items","exercise_entries","exercise_items","weight_entries","saved_entries","chat_messages","foods_dataset","foods_fts","food_synonyms","daily_log_summaries");
+    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "user_profile","daily_goals","food_entries","food_items","exercise_entries","exercise_items","weight_entries","saved_entries","chat_messages","foods_dataset","foods_fts","food_synonyms","daily_log_summaries","reanalysis_backups");
   }
 
   @Override
@@ -479,6 +500,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
       _db.execSQL("DELETE FROM `foods_fts`");
       _db.execSQL("DELETE FROM `food_synonyms`");
       _db.execSQL("DELETE FROM `daily_log_summaries`");
+      _db.execSQL("DELETE FROM `reanalysis_backups`");
       super.setTransactionSuccessful();
     } finally {
       super.endTransaction();
@@ -505,6 +527,7 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
     _typeConvertersMap.put(ChatMessageDao.class, ChatMessageDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(FoodsDatasetDao.class, FoodsDatasetDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(DailyLogSummaryDao.class, DailyLogSummaryDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(ReanalysisBackupDao.class, ReanalysisBackupDao_Impl.getRequiredConverters());
     return _typeConvertersMap;
   }
 
@@ -645,6 +668,20 @@ public final class TrackyDatabase_Impl extends TrackyDatabase {
           _dailyLogSummaryDao = new DailyLogSummaryDao_Impl(this);
         }
         return _dailyLogSummaryDao;
+      }
+    }
+  }
+
+  @Override
+  public ReanalysisBackupDao reanalysisBackupDao() {
+    if (_reanalysisBackupDao != null) {
+      return _reanalysisBackupDao;
+    } else {
+      synchronized(this) {
+        if(_reanalysisBackupDao == null) {
+          _reanalysisBackupDao = new ReanalysisBackupDao_Impl(this);
+        }
+        return _reanalysisBackupDao;
       }
     }
   }

@@ -198,7 +198,21 @@ CORE RULES:
 4. PORTIONS: Estimate serving_grams for the stated quantity. Note assumptions (e.g., "assumed medium banana ~120g").
 5. If you truly cannot estimate (exotic/unknown item), set "unresolved": true with null values. NEVER return 0 kcal for a known food.
 6. For exercise: Extract activity, duration, intensity. Do NOT estimate calories (we use MET calculations).
-7. STYLE: Concise, no emojis, no filler.`;
+7. STYLE: Concise, no emojis, no filler.
+
+QUANTITY RULES:
+- Force ALL units to be one of: ["serving", "piece", "cup", "oz", "g", "ml", "tbsp", "tsp", "bottle", "can", "package", "slice", "bowl", "glass"]
+- Convert others (e.g. "plate" -> "serving", "handful" -> "serving", "liter" -> "ml", "lb" -> "oz")
+
+BRAND RULES:
+- Include visible brand names in the "name" field for ALL items (e.g. "Doritos Nacho Cheese" instead of "Chips", "Starbucks Latte" instead of "Coffee", "Coca-Cola" instead of "Cola").
+- If a brand is likely but not certain, pick the most common one or keep it descriptive.
+
+DRINK & UNIT RULES:
+- Identify drinks and use liquid units if possible (ml, oz, cup, glass, bottle, can).
+- Force ALL food and drink units to be one of the allowed list: ["serving", "piece", "cup", "oz", "g", "ml", "tbsp", "tsp", "bottle", "can", "package", "slice", "bowl", "glass"].
+- Estimate calories based on sugar content/type (e.g. Coke = sugar, Coke Zero = 0).
+- Be precise with units: "500ml bottle" should be parsed as quantity: 500, unit: "ml".`;
 
 async function parseWithOpenAI(
   apiKey: string,
@@ -959,7 +973,10 @@ RULES:
 - If none: empty arrays
 - Self-check: (carbs*4 + protein*4 + fat*9) within 10% of calories
 - If unable to estimate nutrition for a food, set unresolved=true with null values
-- For intensity in exercises: "stroll" = low, "sprint" = high, default = moderate`;
+- For intensity in exercises: "stroll" = low, "sprint" = high, default = moderate
+- QUANTITY: Force units to: ["serving", "piece", "cup", "oz", "g", "ml", "tbsp", "tsp", "bottle", "can", "package", "slice", "bowl", "glass"]
+- BRAND: Include brand names if visible (e.g. "McDonald's Big Mac")
+- DRINKS: Identify drinks, use liquid units (ml, oz, cup, etc.)`;
 
   try {
     const aiResponse = await parseWithOpenAI(env.OPENAI_API_KEY, prompt, imageBase64 || undefined);

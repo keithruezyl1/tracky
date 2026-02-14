@@ -35,5 +35,20 @@ data class DraftFoodItem(
     val fatG: Float,
     val provenance: Provenance,
     val resolved: Boolean,
-    val isManualMacros: Boolean = false
+    val isManualMacros: Boolean = false,
+    val isAnalyzing: Boolean = false,
+    val analysisRevision: Long = 0
+)
+
+@Serializable
+data class DraftExerciseItem(
+    val activity: String,
+    val durationMinutes: Int,
+    val metValue: Float,
+    val caloriesBurned: Float,
+    val intensity: ExerciseIntensity,
+    val resolved: Boolean,
+    val isManual: Boolean = false,
+    val isAnalyzing: Boolean = false,
+    val analysisRevision: Long = 0
 )

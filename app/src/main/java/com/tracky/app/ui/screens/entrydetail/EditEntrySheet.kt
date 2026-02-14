@@ -29,7 +29,10 @@ import com.tracky.app.ui.components.TrackyDivider
 import com.tracky.app.ui.components.TrackyInput
 import com.tracky.app.ui.components.TrackyNumberInput
 import com.tracky.app.ui.components.TrackySheetActions
+import com.tracky.app.ui.components.BadgeStyle
+import com.tracky.app.ui.components.TrackyBadge
 import com.tracky.app.ui.components.TrackyChip
+import com.tracky.app.ui.components.TrackySelect
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
 
@@ -74,13 +77,10 @@ fun EditFoodEntrySheet(
                 )
                 
                 if (editedItems.any { it.isManualMacros }) {
-                    TrackyChip(
-                        label = "Manual Edit",
-                        selected = true,
-                        onClick = {},
-                        compact = true,
-                        enabled = false,
-                        tint = TrackyColors.Warning
+                    TrackyBadge(
+                        text = "Manual Edit",
+                        style = BadgeStyle.WARNING,
+                        compact = true
                     )
                 }
             }
@@ -268,8 +268,16 @@ private fun EditFoodItemCard(
                 label = "Quantity",
                 modifier = Modifier.weight(1f)
             )
-            TrackyInput(
+            
+            val allowedUnits = listOf(
+                "serving", "piece", "cup", "oz", "g", "ml", 
+                "tbsp", "tsp", "bottle", "can", "package", 
+                "slice", "bowl", "glass"
+            )
+            
+            TrackySelect(
                 value = item.unit,
+                options = allowedUnits,
                 onValueChange = {
                     emitChange(newUnit = it)
                 },
@@ -372,13 +380,10 @@ fun EditExerciseEntrySheet(
                 )
                 
                 if (editedItems.any { it.isManual }) {
-                    TrackyChip(
-                        label = "Manual Edit",
-                        selected = true,
-                        onClick = {},
-                        compact = true,
-                        enabled = false,
-                        tint = TrackyColors.Warning
+                    TrackyBadge(
+                        text = "Manual Edit",
+                        style = BadgeStyle.WARNING,
+                        compact = true
                     )
                 }
             }
@@ -552,23 +557,36 @@ private fun EditExerciseItemCard(
 
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
-        TrackyNumberInput(
-            value = durationText,
-            onValueChange = {
-                durationText = it
-                val d = it.toIntOrNull()
-                if (d != null) {
-                    // Recalculate calories if we have MET and Weight
-                    val newCals = if (item.metValue > 0 && userWeightKg > 0) {
-                        calculateCalories(item.metValue, userWeightKg, d)
-                    } else item.caloriesBurned
-                    emitChange(newDuration = d, newCalories = newCals)
-                }
-            },
-            label = "Duration",
-            suffix = "min",
-            allowDecimal = false
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.S)
+        ) {
+            TrackyNumberInput(
+                value = durationText,
+                onValueChange = {
+                    durationText = it
+                    val d = it.toIntOrNull()
+                    if (d != null) {
+                        // Recalculate calories if we have MET and Weight
+                        val newCals = if (item.metValue > 0 && userWeightKg > 0) {
+                            calculateCalories(item.metValue, userWeightKg, d)
+                        } else item.caloriesBurned
+                        emitChange(newDuration = d, newCalories = newCals)
+                    }
+                },
+                label = "Duration",
+                modifier = Modifier.weight(1f),
+                allowDecimal = false
+            )
+            
+            TrackySelect(
+                value = "min",
+                options = listOf("min", "hours"),
+                onValueChange = { /* Handle if unit changes in model later */ },
+                label = "Unit",
+                modifier = Modifier.weight(1f)
+            )
+        }
 
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 

@@ -103,6 +103,8 @@ import com.tracky.app.domain.usecase.DraftState
 import com.tracky.app.domain.model.DraftStatus
 import com.tracky.app.ui.camera.CameraCaptureScreen
 import com.tracky.app.ui.camera.uriToBase64
+import com.tracky.app.ui.components.BadgeStyle
+import com.tracky.app.ui.components.TrackyBadge
 import com.tracky.app.ui.components.DayStatus
 import com.tracky.app.ui.components.TrackyBodySmall
 import com.tracky.app.ui.components.TrackyText
@@ -121,6 +123,7 @@ import com.tracky.app.ui.components.TrackyDivider
 import com.tracky.app.ui.components.TrackyDraftingState
 import com.tracky.app.ui.components.TrackyEntryCard
 import com.tracky.app.ui.components.TrackyInput
+import com.tracky.app.ui.components.TrackyLoadingIndicator
 import com.tracky.app.ui.components.TrackyCircularMacroProgress
 import com.tracky.app.ui.components.TrackyMacrosRow
 import com.tracky.app.ui.components.TrackyScreenTitle
@@ -186,6 +189,10 @@ fun HomeScreen(
     // Draft editing state
     var editingFoodIndex by remember { mutableStateOf<Int?>(null) }
     var editingExerciseIndex by remember { mutableStateOf<Int?>(null) }
+    
+    // Quick Add State
+    var showQuickAdd by remember { mutableStateOf(false) }
+    var quickAddType by remember { mutableStateOf<QuickAddType?>(null) }
 
     // Show error from uiState
     LaunchedEffect(uiState.error) {
@@ -536,7 +543,11 @@ fun HomeScreen(
                                                     animate = uiState.shouldAnimateDraft,
                                                     onConfirm = { viewModel.confirmFoodDraft(dateDraftState.data) },
                                                     onCancel = viewModel::cancelDraft,
-                                                    onItemClick = { index -> editingFoodIndex = index }
+                                                    onItemClick = { index -> editingFoodIndex = index },
+                                                    onAddClick = { 
+                                                        quickAddType = QuickAddType.AmbulatoryFood 
+                                                        showQuickAdd = true 
+                                                    }
                                                 )
                                             }
                                         }
@@ -550,7 +561,11 @@ fun HomeScreen(
                                                     animate = uiState.shouldAnimateDraft,
                                                     onConfirm = { viewModel.confirmExerciseDraft(dateDraftState.data) },
                                                     onCancel = viewModel::cancelDraft,
-                                                    onItemClick = { index -> editingExerciseIndex = index }
+                                                    onItemClick = { index -> editingExerciseIndex = index },
+                                                    onAddClick = { 
+                                                        quickAddType = QuickAddType.AmbulatoryExercise
+                                                        showQuickAdd = true 
+                                                    }
                                                 )
                                             }
                                         }
@@ -797,6 +812,19 @@ fun HomeScreen(
             }
         )
     }
+    
+    // Quick Add Sheet
+    if (showQuickAdd) {
+        quickAddType?.let { type ->
+            QuickAddSheet(
+                type = type,
+                onDismiss = { showQuickAdd = false },
+                onAdd = { text ->
+                    viewModel.addToDraft(text, type == QuickAddType.AmbulatoryFood)
+                }
+            )
+        }
+    }
 
     // Edit Food Draft Item Sheet
     editingFoodIndex?.let { index ->
@@ -1015,7 +1043,8 @@ private fun FoodDraftCard(
     animate: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
-    onItemClick: (Int) -> Unit
+    onItemClick: (Int) -> Unit,
+    onAddClick: () -> Unit
 ) {
     val scale = remember { androidx.compose.animation.core.Animatable(if (animate) 0.9f else 1.0f) }
     
@@ -1035,15 +1064,28 @@ private fun FoodDraftCard(
     TrackyCard(
         modifier = Modifier.scale(scale.value)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Outlined.Restaurant,
-                contentDescription = null,
-                tint = TrackyColors.BrandPrimary,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(TrackyTokens.Spacing.XS))
-            TrackyCardTitle(text = "Confirm Food Entry")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.Restaurant,
+                    contentDescription = null,
+                    tint = TrackyColors.BrandPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(TrackyTokens.Spacing.XS))
+                TrackyCardTitle(text = "Confirm Food Entry")
+            }
+            IconButton(onClick = onAddClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    Icons.Outlined.Add,
+                    contentDescription = "Add Item",
+                    tint = TrackyColors.BrandPrimary
+                )
+            }
         }
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
@@ -1065,17 +1107,21 @@ private fun FoodDraftCard(
                         color = TrackyColors.TextSecondary,
                         maxLines = 1
                     )
-                    if (item.resolved) {
+                    if (item.resolved && !item.isAnalyzing) {
                         ProvenanceLabel(source = item.provenance.source)
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    TrackyBodySmall(text = "${item.calories.toInt()} kcal")
-                    TrackyText(
-                        text = "C: ${item.carbsG.toInt()}g P: ${item.proteinG.toInt()}g F: ${item.fatG.toInt()}g",
-                        style = TrackyTextStyle.LabelExtraSmall,
-                        color = TrackyColors.TextTertiary
-                    )
+                    if (item.isAnalyzing) {
+                        TrackyLoadingIndicator(size = 16.dp, strokeWidth = 2.dp)
+                    } else {
+                        TrackyBodySmall(text = "${item.calories.toInt()} kcal")
+                        TrackyText(
+                            text = "C: ${item.carbsG.toInt()}g P: ${item.proteinG.toInt()}g F: ${item.fatG.toInt()}g",
+                            style = TrackyTextStyle.LabelExtraSmall,
+                            color = TrackyColors.TextTertiary
+                        )
+                    }
                 }
             }
         }
@@ -1119,7 +1165,8 @@ private fun ExerciseDraftCard(
     animate: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
-    onItemClick: (Int) -> Unit
+    onItemClick: (Int) -> Unit,
+    onAddClick: () -> Unit
 ) {
     val scale = remember { androidx.compose.animation.core.Animatable(if (animate) 0.9f else 1.0f) }
 
@@ -1139,15 +1186,28 @@ private fun ExerciseDraftCard(
     TrackyCard(
         modifier = Modifier.scale(scale.value)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Outlined.FitnessCenter,
-                contentDescription = null,
-                tint = TrackyColors.Success,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(TrackyTokens.Spacing.XS))
-            TrackyCardTitle(text = "Confirm Exercise Entry")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.FitnessCenter,
+                    contentDescription = null,
+                    tint = TrackyColors.Success,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(TrackyTokens.Spacing.XS))
+                TrackyCardTitle(text = "Confirm Exercise Entry")
+            }
+            IconButton(onClick = onAddClick, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    Icons.Outlined.Add,
+                    contentDescription = "Add Item",
+                    tint = TrackyColors.Success
+                )
+            }
         }
         Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
@@ -1170,15 +1230,17 @@ private fun ExerciseDraftCard(
                         maxLines = 1
                     )
                 }
-                
                 Column(horizontalAlignment = Alignment.End) {
-                    TrackyBodySmall(text = "${item.caloriesBurned.toInt()} kcal")
-                    item.intensity.let { intensity ->
-                        TrackyText(
-                            text = intensity.value.lowercase().replaceFirstChar { it.uppercase() },
-                            style = TrackyTextStyle.LabelExtraSmall,
-                            color = TrackyColors.TextTertiary
-                        )
+                    if (item.isAnalyzing) {
+                        TrackyLoadingIndicator(size = 16.dp, strokeWidth = 2.dp)
+                    } else {
+                        TrackyBodySmall(text = "${item.caloriesBurned.toInt()} kcal")
+                        item.intensity.let { intensity ->
+                            TrackyBodySmall(
+                                text = intensity.value.lowercase().replaceFirstChar { it.uppercase() },
+                                color = TrackyColors.TextTertiary
+                            )
+                        }
                     }
                 }
             }
@@ -1566,6 +1628,43 @@ fun ComposerBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun QuickAddSheet(
+    type: QuickAddType,
+    onDismiss: () -> Unit,
+    onAdd: (String) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+    val title = if (type == QuickAddType.AmbulatoryFood) "Add Food" else "Add Exercise"
+    val placeholder = if (type == QuickAddType.AmbulatoryFood) "e.g. 1 apple, 200g chicken" else "e.g. 30min running, 15 pushups"
+
+    TrackyBottomSheet(
+        onDismissRequest = onDismiss,
+        title = title
+    ) {
+        Column {
+            TrackyInput(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = placeholder,
+                singleLine = true
+            )
+            
+            TrackySheetActions(
+                primaryText = "Add",
+                onPrimaryClick = {
+                    onAdd(text)
+                    onDismiss()
+                },
+                primaryEnabled = text.isNotBlank(),
+                secondaryText = "Cancel",
+                onSecondaryClick = onDismiss
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun EditFoodDraftItemSheet(
     item: com.tracky.app.domain.model.DraftFoodItem,
     onDismiss: () -> Unit,
@@ -1663,13 +1762,10 @@ private fun EditFoodDraftItemSheet(
                 )
                 
                 if (isManual) {
-                    TrackyChip(
-                        label = "Manual Edit",
-                        selected = true,
-                        onClick = {},
-                        compact = true,
-                        enabled = true,
-                        tint = TrackyColors.Warning
+                    TrackyBadge(
+                        text = "Manual Edit",
+                        style = BadgeStyle.WARNING,
+                        compact = true
                     )
                 }
             }
@@ -1696,8 +1792,10 @@ private fun EditFoodDraftItemSheet(
                     )
                 }
                 Box(modifier = Modifier.weight(1f)) {
-                    TrackyInput(
+                    val commonUnits = listOf("serving", "g", "oz", "cup", "ml", "tbsp", "tsp")
+                    com.tracky.app.ui.components.TrackySelect(
                         value = unit,
+                        options = commonUnits,
                         onValueChange = { unit = it },
                         label = "Unit",
                         placeholder = "serving"
@@ -1857,15 +1955,11 @@ private fun EditExerciseDraftItemSheet(
                     color = TrackyColors.TextPrimary
                 )
                 
-                // Show badge if ANY field is changed
                 if (isManual) {
-                    TrackyChip(
-                        label = "Manual Edit",
-                        selected = true,
-                        onClick = {},
-                        compact = true,
-                        enabled = true,
-                        tint = TrackyColors.Warning
+                    TrackyBadge(
+                        text = "Manual Edit",
+                        style = BadgeStyle.WARNING,
+                        compact = true
                     )
                 }
             }
@@ -1898,16 +1992,29 @@ private fun EditExerciseDraftItemSheet(
             
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
 
-            com.tracky.app.ui.components.TrackyNumberInput(
-                value = durationText,
-                onValueChange = { 
-                    durationText = it 
-                    updateCaloriesAuto()
-                },
-                label = "Duration (minutes)",
-                placeholder = "30",
-                allowDecimal = false
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.M)) {
+                Box(modifier = Modifier.weight(1f)) {
+                    com.tracky.app.ui.components.TrackyNumberInput(
+                        value = durationText,
+                        onValueChange = { 
+                            durationText = it 
+                            updateCaloriesAuto()
+                        },
+                        label = "Duration",
+                        placeholder = "30",
+                        allowDecimal = false
+                    )
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    com.tracky.app.ui.components.TrackySelect(
+                        value = "min",
+                        options = listOf("min", "hours"),
+                        onValueChange = { /* Handle unit change */ },
+                        label = "Unit",
+                        placeholder = "min"
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
 
@@ -1965,4 +2072,9 @@ private fun PillMenuItem(
             )
         }
     }
+}
+
+enum class QuickAddType {
+    AmbulatoryFood,
+    AmbulatoryExercise
 }

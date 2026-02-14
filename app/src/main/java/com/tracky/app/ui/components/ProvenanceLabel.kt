@@ -35,37 +35,24 @@ fun ProvenanceLabel(
     modifier: Modifier = Modifier,
     compact: Boolean = true
 ) {
-    val (label, dotColor) = when (source) {
-        ProvenanceSource.AI_ESTIMATE -> "Estimated" to Color(0xFF5B9BD5) // Blue
-        ProvenanceSource.USER_HISTORY -> "Saved" to Color(0xFF4CAF50)    // Green
-        ProvenanceSource.DATASET -> "Saved" to Color(0xFF4CAF50)         // Green
-        ProvenanceSource.USER_OVERRIDE -> "Manual" to Color(0xFFFFA726)  // Amber
+    val style = when (source) {
+        ProvenanceSource.AI_ESTIMATE -> BadgeStyle.INDICATOR
+        ProvenanceSource.USER_HISTORY -> BadgeStyle.SUCCESS
+        ProvenanceSource.DATASET -> BadgeStyle.SUCCESS
+        ProvenanceSource.USER_OVERRIDE -> BadgeStyle.WARNING
         @Suppress("DEPRECATION")
-        ProvenanceSource.USDA_FDC -> "Saved" to Color(0xFF4CAF50)       // Legacy
+        ProvenanceSource.USDA_FDC -> BadgeStyle.SUCCESS
         @Suppress("DEPRECATION")
-        ProvenanceSource.INTERNET -> "Estimated" to Color(0xFF5B9BD5)   // Legacy
-        ProvenanceSource.UNRESOLVED -> "Unresolved" to Color(0xFFEF5350) // Red
+        ProvenanceSource.INTERNET -> BadgeStyle.INDICATOR
+        ProvenanceSource.UNRESOLVED -> BadgeStyle.DANGER
     }
 
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(dotColor.copy(alpha = 0.08f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .background(dotColor, CircleShape)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = label,
-            style = TrackyTypography.LabelSmall,
-            color = dotColor
-        )
-    }
+    TrackyBadge(
+        text = source.displayLabel(),
+        style = style,
+        modifier = modifier,
+        compact = compact
+    )
 }
 
 /**

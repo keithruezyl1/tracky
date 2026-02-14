@@ -30,5 +30,12 @@ data class ExerciseItem(
     /**
      * Pending suggested update from AI.
      */
-    val pendingSuggestion: ExerciseItem? = null
+    val pendingSuggestion: ExerciseItem? = null,
+
+    /**
+     * Transient state for UI loading indicator.
+     * Not serialized.
+     */
+    @kotlinx.serialization.Transient
+    val isAnalyzing: Boolean = false
 )

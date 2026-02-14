@@ -72,4 +72,9 @@ object DatabaseModule {
     fun provideDailyLogSummaryDao(database: TrackyDatabase): DailyLogSummaryDao {
         return database.dailyLogSummaryDao()
     }
+
+    @Provides
+    fun provideReanalysisBackupDao(database: TrackyDatabase): com.tracky.app.data.local.dao.ReanalysisBackupDao {
+        return database.reanalysisBackupDao()
+    }
 }

@@ -55,15 +55,20 @@ import com.tracky.app.ui.components.TrackyCircularMacroProgress
 import com.tracky.app.ui.components.TrackyDivider
 import com.tracky.app.ui.components.TrackyFullScreenLoading
 import com.tracky.app.ui.components.TrackyInfoCard
+import com.tracky.app.ui.components.TrackyLoadingIndicator
 import com.tracky.app.ui.components.TrackySectionTitle
 import com.tracky.app.ui.components.TrackyTopBarWithBack
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import com.tracky.app.ui.components.TrackySelect
+import com.tracky.app.ui.components.TrackyBadge
+import com.tracky.app.ui.components.BadgeStyle
 import com.tracky.app.ui.components.TrackyChip
 import com.tracky.app.ui.components.TrackyBottomSheet
 import com.tracky.app.ui.components.ProvenanceLabel
+import com.tracky.app.ui.components.TrackyButtonPrimary
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
 
@@ -484,11 +489,15 @@ private fun FoodItemRow(
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    TrackyBodyText(text = "${item.calories} kcal")
-                    TrackyBodySmall(
-                        text = "C: ${item.carbsG.toInt()}g P: ${item.proteinG.toInt()}g F: ${item.fatG.toInt()}g",
-                        color = TrackyColors.TextTertiary
-                    )
+                    if (item.isAnalyzing) {
+                        TrackyLoadingIndicator(size = 16.dp, strokeWidth = 2.dp)
+                    } else {
+                        TrackyBodyText(text = "${item.calories} kcal")
+                        TrackyBodySmall(
+                            text = "C: ${item.carbsG.toInt()}g P: ${item.proteinG.toInt()}g F: ${item.fatG.toInt()}g",
+                            color = TrackyColors.TextTertiary
+                        )
+                    }
                 }
             }
             
@@ -498,12 +507,10 @@ private fun FoodItemRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TrackyChip(
-                        label = "Review Update",
-                        selected = true,
+                    TrackyButtonPrimary(
+                        text = "Review Update",
                         onClick = { onReviewClick(item) },
-                        compact = true,
-                        tint = TrackyTokens.Colors.BrandPrimary
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -542,11 +549,15 @@ private fun ExerciseItemRow(
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    TrackyBodyText(text = "${item.caloriesBurned} kcal")
-                    TrackyBodySmall(
-                        text = "${item.durationMinutes} min",
-                        color = TrackyColors.TextTertiary
-                    )
+                    if (item.isAnalyzing) {
+                         TrackyLoadingIndicator(size = 16.dp, strokeWidth = 2.dp)
+                    } else {
+                        TrackyBodyText(text = "${item.caloriesBurned} kcal")
+                        TrackyBodySmall(
+                            text = "${item.durationMinutes} min",
+                            color = TrackyColors.TextTertiary
+                        )
+                    }
                 }
             }
              if (item.pendingSuggestion != null) {
@@ -555,12 +566,10 @@ private fun ExerciseItemRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TrackyChip(
-                        label = "Review Update",
-                        selected = true,
+                    TrackyButtonPrimary(
+                        text = "Review Update",
                         onClick = { onReviewClick(item) },
-                        compact = true,
-                        tint = TrackyTokens.Colors.BrandPrimary
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -701,10 +710,13 @@ fun AddItemSheet(
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
-                    OutlinedTextField(
+                    
+                    val commonUnits = listOf("serving", "g", "oz", "cup", "ml", "tbsp", "tsp")
+                    TrackySelect(
                         value = unit,
+                        options = commonUnits,
                         onValueChange = { unit = it },
-                        label = { Text("Unit") },
+                        label = "Unit",
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -726,13 +738,23 @@ fun AddItemSheet(
                     label = { Text("Activity (e.g. Running)") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = duration,
-                    onValueChange = { duration = it },
-                    label = { Text("Duration (minutes)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.S)) {
+                    OutlinedTextField(
+                        value = duration,
+                        onValueChange = { duration = it },
+                        label = { Text("Duration") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    
+                    TrackySelect(
+                        value = unit.ifEmpty { "min" },
+                        options = listOf("min", "hours"),
+                        onValueChange = { unit = it },
+                        label = "Unit",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 Button(
                     onClick = {
                         val dur = duration.toIntOrNull() ?: 0

@@ -185,10 +185,11 @@ class DraftLoggingInteractor @Inject constructor(
                         proteinG = food.proteinG,
                         fatG = food.fatG,
                         provenance = food.provenance,
-                        resolved = true
+                        resolved = true,
+                        isAnalyzing = false
                     )
                 }
-                else -> item
+                else -> item.copy(isAnalyzing = false)
             }
         }
         
@@ -321,7 +322,8 @@ class DraftLoggingInteractor @Inject constructor(
                                     item.copy(
                                         caloriesBurned = calories,
                                         metValue = met,
-                                        resolved = resolved
+                                        resolved = resolved,
+                                        isAnalyzing = false
                                     )
                                 } else item
                             } else item
@@ -573,7 +575,91 @@ class DraftLoggingInteractor @Inject constructor(
         _draftState.value = DraftState.Idle
     }
 
-    fun updateFoodDraftItem(
+    // ─────────────────────────────────────────────────────────────────────────
+    // Draft Modifications
+    // ─────────────────────────────────────────────────────────────────────────
+
+    suspend fun addToFoodDraft(text: String) {
+        val current = _draftState.value
+        if (current is DraftState.FoodDraft) {
+            try {
+                val profile = profileRepository.getProfileOnce()
+                val userWeightKg = profile?.currentWeightKg ?: 70f
+                val response = backendApi.logFood(LogFoodRequest(text = text, imageBase64 = null, userWeightKg = userWeightKg))
+                
+                if (response.isSuccessful) {
+                    val body = response.body()
+                        if (body != null) {
+                            val newItems = body.items.map { dto ->
+                                DraftFoodItem(
+                                    name = sentenceCase(dto.name),
+                                    matchedName = null,
+                                    quantity = dto.quantity.toDouble(),
+                                    unit = dto.unit,
+                                    calories = dto.calories ?: 0f,
+                                    carbsG = dto.carbs ?: 0f,
+                                    proteinG = dto.protein ?: 0f,
+                                    fatG = dto.fat ?: 0f,
+                                    provenance = if (dto.calories != null && dto.calories > 0f)
+                                        Provenance(ProvenanceSource.AI_ESTIMATE, null, dto.confidence)
+                                    else
+                                        Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                                    resolved = dto.calories != null && dto.calories > 0f,
+                                    isAnalyzing = true
+                                )
+                            }
+                            
+                            val combinedItems = current.data.items + newItems
+                            val draft = current.data.copy(items = combinedItems)
+                            _draftState.value = DraftState.FoodDraft(draft)
+                            resolveFoodDraft(draft)
+                        }
+                }
+            } catch (e: Exception) {
+                // Ignore addition errors, maybe show toast in UI?
+            }
+        }
+    }
+
+    suspend fun addToExerciseDraft(text: String) {
+        val current = _draftState.value
+        if (current is DraftState.ExerciseDraft) {
+            try {
+                val profile = profileRepository.getProfileOnce()
+                val userWeightKg = profile?.currentWeightKg ?: 70f
+                val response = backendApi.logExercise(LogExerciseRequest(text = text, userWeightKg = userWeightKg))
+                
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body != null && body.exercises.isNotEmpty()) {
+                        val localIntensity = parseIntensityFromText(text)
+                        val newItems = body.exercises.map { parsed ->
+                            DraftExerciseItem(
+                                activity = sentenceCase(parsed.activity),
+                                durationMinutes = parsed.durationMinutes,
+                                metValue = 0f,
+                                caloriesBurned = 0f,
+                                intensity = localIntensity ?: ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
+                                resolved = false
+                            )
+                        }
+
+                        val combinedItems = current.data.items + newItems
+                        val draft = current.data.copy(
+                            items = combinedItems
+                            // Totals recalculated in resolveExerciseDraft
+                        )
+                        _draftState.value = DraftState.ExerciseDraft(draft)
+                        resolveExerciseDraft(draft)
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+    }
+
+    suspend fun updateFoodDraftItem(
         draftId: Long, 
         index: Int, 
         name: String, 
@@ -583,15 +669,23 @@ class DraftLoggingInteractor @Inject constructor(
         carbs: Float? = null,
         protein: Float? = null,
         fat: Float? = null,
-        isManual: Boolean = false
+        isManual: Boolean = false // This flag means "macros were manually edited"
     ) {
         val current = _draftState.value
         if (current is DraftState.FoodDraft) {
             val items = current.data.items.toMutableList()
             if (index in items.indices) {
-                // Keep existing values if new ones are null
                 val currentItem = items[index]
-                items[index] = currentItem.copy(
+                val nameChanged = currentItem.name != name
+                
+                // If name changed, we increment revision to bind async results
+                val newRevision = if (nameChanged) currentItem.analysisRevision + 1 else currentItem.analysisRevision
+                
+                // If name changed, mark as analyzing. If manual macros was false, it stays false until specific field edit overrides.
+                // However, the caller passes 'isManual' based on *which fields* were edited in the UI. 
+                // We should respect the passed 'isManual' for immediate updates.
+                
+                val updatedItem = currentItem.copy(
                     name = sentenceCase(name), 
                     quantity = quantity, 
                     unit = unit,
@@ -599,9 +693,13 @@ class DraftLoggingInteractor @Inject constructor(
                     carbsG = carbs ?: currentItem.carbsG,
                     proteinG = protein ?: currentItem.proteinG,
                     fatG = fat ?: currentItem.fatG,
-                    isManualMacros = isManual
+                    isManualMacros = isManual,
+                    isAnalyzing = nameChanged,
+                    analysisRevision = newRevision
                 )
-                // Recalculate totals
+                items[index] = updatedItem
+
+                // Recalculate totals immediately with user inputs
                 val newDraft = current.data.copy(
                     items = items,
                     totalCalories = items.sumOf { it.calories.toDouble() }.toFloat(),
@@ -610,11 +708,85 @@ class DraftLoggingInteractor @Inject constructor(
                     totalFatG = items.sumOf { it.fatG.toDouble() }.toFloat()
                 )
                 _draftState.value = DraftState.FoodDraft(newDraft)
+
+                // Trigger Async Re-analysis if name changed
+                if (nameChanged) {
+                    coroutineScope {
+                        async {
+                            try {
+                                val result = foodsRepository.resolveFood(
+                                        name = name, 
+                                        quantity = quantity.toFloat(), 
+                                        unit = unit
+                                )
+                                
+                                // Apply result carefully
+                                val freshState = _draftState.value
+                                if (freshState is DraftState.FoodDraft) {
+                                    val freshItems = freshState.data.items.toMutableList()
+                                    if (index in freshItems.indices) {
+                                        val freshItem = freshItems[index]
+                                        
+                                        // 1. Revision Check
+                                        if (freshItem.analysisRevision == newRevision) {
+                                            // 2. Manual Lock Check
+                                            if (!freshItem.isManualMacros) {
+                                                // Safe to overwrite
+                                                if (result is ResolvedFoodResult.Success) {
+                                                    val food = result.foodItem
+                                                    freshItems[index] = freshItem.copy(
+                                                        matchedName = food.matchedName,
+                                                        calories = food.calories,
+                                                        carbsG = food.carbsG,
+                                                        proteinG = food.proteinG,
+                                                        fatG = food.fatG,
+                                                        provenance = food.provenance, // Set origin to AI
+                                                        resolved = true,
+                                                        isAnalyzing = false
+                                                    )
+                                                } else {
+                                                    // Failed resolution, just stop animating
+                                                    freshItems[index] = freshItem.copy(isAnalyzing = false)
+                                                }
+                                                
+                                                // Recalculate totals again
+                                                val updatedDraft = freshState.data.copy(
+                                                    items = freshItems,
+                                                    totalCalories = freshItems.sumOf { it.calories.toDouble() }.toFloat(),
+                                                    totalCarbsG = freshItems.sumOf { it.carbsG.toDouble() }.toFloat(),
+                                                    totalProteinG = freshItems.sumOf { it.proteinG.toDouble() }.toFloat(),
+                                                    totalFatG = freshItems.sumOf { it.fatG.toDouble() }.toFloat()
+                                                )
+                                                _draftState.value = DraftState.FoodDraft(updatedDraft)
+                                            } else {
+                                                // Manual macros locked: Do NOT overwrite. 
+                                                // Ideally we'd show a "Suggestion Available" but for drafts we just stop loading.
+                                                freshItems[index] = freshItem.copy(isAnalyzing = false)
+                                                val updatedDraft = freshState.data.copy(items = freshItems)
+                                                _draftState.value = DraftState.FoodDraft(updatedDraft)
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // Clear loading state on error
+                                val freshState = _draftState.value
+                                if (freshState is DraftState.FoodDraft) {
+                                     val freshItems = freshState.data.items.toMutableList()
+                                     if (index in freshItems.indices && freshItems[index].analysisRevision == newRevision) {
+                                         freshItems[index] = freshItems[index].copy(isAnalyzing = false)
+                                         _draftState.value = DraftState.FoodDraft(freshState.data.copy(items = freshItems))
+                                     }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
-    fun updateExerciseDraftItem(
+    suspend fun updateExerciseDraftItem(
         draftId: Long, 
         index: Int, 
         activity: String, 
@@ -628,19 +800,29 @@ class DraftLoggingInteractor @Inject constructor(
             val items = current.data.items.toMutableList()
             if (index in items.indices) {
                 val currentItem = items[index]
-                items[index] = currentItem.copy(
+                val nameChanged = currentItem.activity != activity
+                
+                val updatedItem = currentItem.copy(
                     activity = sentenceCase(activity), 
                     durationMinutes = durationMinutes,
                     intensity = intensity ?: currentItem.intensity,
                     caloriesBurned = calories ?: currentItem.caloriesBurned,
                     isManual = isManual
                 )
+                items[index] = updatedItem
+                
                 val newDraft = current.data.copy(
                     items = items,
                     totalCalories = items.map { it.caloriesBurned }.sum(),
                     totalDurationMinutes = items.sumOf { it.durationMinutes }
                 )
                 _draftState.value = DraftState.ExerciseDraft(newDraft)
+                
+                // For exercise, simple re-resolve if name changed, but respecting manual overrides is harder without specific endpoint support
+                // For now we will just re-trigger resolveExerciseDraft logic if name changed AND not manual
+                if (nameChanged && !isManual) {
+                     resolveExerciseDraft(newDraft)
+                }
             }
         }
     }

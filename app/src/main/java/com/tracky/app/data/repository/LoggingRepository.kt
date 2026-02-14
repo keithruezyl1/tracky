@@ -24,8 +24,48 @@ class LoggingRepository @Inject constructor(
     private val exerciseEntryDao: ExerciseEntryDao,
     private val dailyLogSummaryDao: DailyLogSummaryDao,
     private val streakInteractor: StreakInteractor,
-    private val goalRepository: GoalRepository
+    private val goalRepository: GoalRepository,
+    private val reanalysisBackupDao: com.tracky.app.data.local.dao.ReanalysisBackupDao
 ) {
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Backups
+    // ─────────────────────────────────────────────────────────────────────────
+
+    suspend fun saveFoodBackup(entry: FoodEntry) {
+        val backup = com.tracky.app.data.local.entity.ReanalysisBackupEntity(
+            originalEntryId = entry.id,
+            type = "food",
+            dataJson = json.encodeToString(FoodEntry.serializer(), entry),
+            date = entry.date
+        )
+        reanalysisBackupDao.insertBackup(backup)
+    }
+
+    suspend fun saveExerciseBackup(entry: ExerciseEntry) {
+        val backup = com.tracky.app.data.local.entity.ReanalysisBackupEntity(
+            originalEntryId = entry.id,
+            type = "exercise",
+            dataJson = json.encodeToString(ExerciseEntry.serializer(), entry),
+            date = entry.date
+        )
+        reanalysisBackupDao.insertBackup(backup)
+    }
+
+    suspend fun getFoodBackup(id: Long): FoodEntry? {
+        val backup = reanalysisBackupDao.getBackup(id, "food")
+        return backup?.let { json.decodeFromString(FoodEntry.serializer(), it.dataJson) }
+    }
+
+    suspend fun getExerciseBackup(id: Long): ExerciseEntry? {
+        val backup = reanalysisBackupDao.getBackup(id, "exercise")
+        return backup?.let { json.decodeFromString(ExerciseEntry.serializer(), it.dataJson) }
+    }
+
+    suspend fun deleteBackup(id: Long, type: String) {
+        reanalysisBackupDao.deleteBackup(id, type)
+    }
     // ─────────────────────────────────────────────────────────────────────────
     // Food Entries
     // ─────────────────────────────────────────────────────────────────────────

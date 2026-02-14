@@ -18,6 +18,8 @@ import com.tracky.app.ui.screens.saved.SavedEntriesScreen
 import com.tracky.app.ui.screens.settings.SettingsScreen
 import com.tracky.app.ui.screens.summary.SummaryScreen
 import com.tracky.app.ui.screens.features.FeaturesScreen
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 
 /**
  * Navigation routes
@@ -58,7 +60,11 @@ fun TrackyNavHost(
         }
 
         // Home / Day Dashboard
-        composable(TrackyRoutes.HOME) {
+        composable(TrackyRoutes.HOME) { backStackEntry ->
+            val reanalyzeQuery by backStackEntry.savedStateHandle.getStateFlow<String?>("reanalyze_query", null).collectAsState()
+            val reanalyzeId by backStackEntry.savedStateHandle.getStateFlow<Long?>("reanalyze_id", null).collectAsState()
+            val reanalyzeType by backStackEntry.savedStateHandle.getStateFlow<String?>("reanalyze_type", null).collectAsState()
+
             HomeScreen(
                 onNavigateToGoals = {
                     navController.navigate(TrackyRoutes.DAILY_GOALS)
@@ -77,6 +83,14 @@ fun TrackyNavHost(
                 },
                 onNavigateToSummary = {
                     navController.navigate(TrackyRoutes.SUMMARY)
+                },
+                reanalyzeQuery = reanalyzeQuery,
+                reanalyzeId = reanalyzeId,
+                reanalyzeType = reanalyzeType,
+                onReanalyzeConsumed = {
+                    backStackEntry.savedStateHandle.remove<String>("reanalyze_query")
+                    backStackEntry.savedStateHandle.remove<Long>("reanalyze_id")
+                    backStackEntry.savedStateHandle.remove<String>("reanalyze_type")
                 }
             )
         }

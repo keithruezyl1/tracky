@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 /**
  * Domain model for Exercise Entry
  */
+@Serializable
 data class ExerciseEntry(
     val id: Long = 0,
     val date: String,

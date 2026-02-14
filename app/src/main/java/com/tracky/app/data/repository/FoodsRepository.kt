@@ -49,10 +49,12 @@ class FoodsRepository @Inject constructor(
         aiProteinG: Float? = null,
         aiFatG: Float? = null
     ): ResolvedFoodResult {
+        // ─── Step 0: Normalize Inputs ───
+        val normalizedUnit = normalizeUnit(unit)
         val canonicalKey = canonicalKeyGenerator.generate(name)
 
         // ─── Step 1: Trusted User History (USER_OVERRIDE / Manual) ───
-        val trustedMatch = userHistoryResolver.findTrustedMatch(name, quantity, unit)
+        val trustedMatch = userHistoryResolver.findTrustedMatch(name, quantity, normalizedUnit)
         if (trustedMatch != null && trustedMatch.isEligibleForAnchorReuse()) {
             return ResolvedFoodResult.Success(
                 trustedMatch.copy(
@@ -73,7 +75,7 @@ class FoodsRepository @Inject constructor(
                     name = entity.name,
                     matchedName = entity.name,
                     quantity = quantity,
-                    unit = unit,
+                    unit = normalizedUnit,
                     calories = (entity.caloriesPerServing * ratio),
                     carbsG = (entity.carbsPerServingG * ratio),
                     proteinG = (entity.proteinPerServingG * ratio),
@@ -91,14 +93,14 @@ class FoodsRepository @Inject constructor(
         }
 
         // ─── Step 3: High-Reuse Saved History (AI_ESTIMATE/USER_HISTORY with enough reusedCount) ───
-        val historyMatch = userHistoryResolver.findHighConfidenceMatch(name, quantity, unit)
+        val historyMatch = userHistoryResolver.findHighConfidenceMatch(name, quantity, normalizedUnit)
         if (historyMatch != null && historyMatch.isEligibleForAnchorReuse(FoodResolutionConfig.REUSE_COUNT_THRESHOLD)) {
             // Check if AI data is available and conflicts with stored values
             val pendingSuggestion = if (aiCalories != null && aiCalories > 0f) {
                 val conflictRatio = kotlin.math.abs(aiCalories - historyMatch.calories) / historyMatch.calories
                 if (conflictRatio > FoodResolutionConfig.SUGGESTION_CONFLICT_THRESHOLD) {
                     // AI disagrees — store as pending suggestion, do NOT overwrite
-                    buildAiItem(name, quantity, unit, aiCalories, aiCarbsG, aiProteinG, aiFatG, canonicalKey)
+                    buildAiItem(name, quantity, normalizedUnit, aiCalories, aiCarbsG, aiProteinG, aiFatG, canonicalKey)
                 } else null
             } else null
 
@@ -114,7 +116,7 @@ class FoodsRepository @Inject constructor(
 
         // ─── Step 4: AI Estimation (GPT-4o mini output) ───
         if (aiCalories != null && aiCalories > 0f) {
-            val aiItem = buildAiItem(name, quantity, unit, aiCalories, aiCarbsG, aiProteinG, aiFatG, canonicalKey)
+            val aiItem = buildAiItem(name, quantity, normalizedUnit, aiCalories, aiCarbsG, aiProteinG, aiFatG, canonicalKey)
             return ResolvedFoodResult.Success(aiItem)
         }
 
@@ -135,7 +137,7 @@ class FoodsRepository @Inject constructor(
                 name = name,
                 matchedName = null,
                 quantity = quantity,
-                unit = unit,
+                unit = normalizedUnit,
                 calories = 0f,
                 carbsG = 0f,
                 proteinG = 0f,
@@ -195,7 +197,32 @@ class FoodsRepository @Inject constructor(
             canonicalKey = canonicalKey
         )
     }
+
+    /**
+     * Normalize unit strings to the allowed set.
+     */
+    private fun normalizeUnit(unit: String): String {
+        val lower = unit.lowercase().trim().removeSuffix(".")
+        return when (lower) {
+            "tablespoon", "tbsp", "tbsp." -> "tbsp"
+            "teaspoon", "tsp", "tsp." -> "tsp"
+            "gram", "grams", "g", "g." -> "g"
+            "ounce", "ounces", "oz", "oz." -> "oz"
+            "milliliter", "milliliters", "ml", "ml." -> "ml"
+            "whole", "item", "fruit", "piece", "pieces" -> "piece"
+            "cup", "cups" -> "cup"
+            "bottle", "bottles" -> "bottle"
+            "can", "cans" -> "can"
+            "package", "packages", "pkg", "packet" -> "package"
+            "slice", "slices" -> "slice"
+            "bowl", "bowls" -> "bowl"
+            "glass", "glasses" -> "glass"
+            "serving", "servings" -> "serving"
+            else -> "serving"
+        }
+    }
 }
+
 
 /**
  * Result type for food resolution

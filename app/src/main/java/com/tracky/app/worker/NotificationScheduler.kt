@@ -1,91 +1,81 @@
 package com.tracky.app.worker
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
-import androidx.work.BackoffPolicy
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
+import android.content.Intent
+import android.os.Build
+import android.util.Log
+import com.tracky.app.receiver.AlarmReceiver
 import java.util.Calendar
-import java.util.concurrent.TimeUnit
 
 object NotificationScheduler {
 
     fun scheduleDailyReminders(context: Context) {
-        val workManager = WorkManager.getInstance(context)
+        // Schedule Breakfast (7 AM)
+        scheduleAlarm(context, 7, 0, AlarmReceiver.TYPE_BREAKFAST, 1001)
 
-        scheduleReminder(
-            workManager,
-            hour = 7,
-            minute = 0,
-            title = "Good morning!",
-            message = "Kaon tarong ha :)",
-            tag = "reminder_7am"
-        )
+        // Schedule Lunch (12 PM)
+        scheduleAlarm(context, 12, 0, AlarmReceiver.TYPE_LUNCH, 1002)
 
-        scheduleReminder(
-            workManager,
-            hour = 11,
-            minute = 0,
-            title = "Lunch Reminder",
-            message = "Ayaw pag softdrinks ig kaon migo!",
-            tag = "reminder_11am"
-        )
-
-        scheduleReminder(
-            workManager,
-            hour = 18,
-            minute = 0,
-            title = "Dinner Reminder",
-            message = "Ayaw palabi kaon ha!",
-            tag = "reminder_6pm"
-        )
+        // Schedule Dinner (6 PM)
+        scheduleAlarm(context, 18, 0, AlarmReceiver.TYPE_DINNER, 1003)
     }
 
-    private fun scheduleReminder(
-        workManager: WorkManager,
+    private fun scheduleAlarm(
+        context: Context,
         hour: Int,
         minute: Int,
-        title: String,
-        message: String,
-        tag: String
+        type: String,
+        notificationId: Int
     ) {
-        val now = Calendar.getInstance()
-        val target = Calendar.getInstance().apply {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra(AlarmReceiver.KEY_TYPE, type)
+            putExtra(AlarmReceiver.KEY_NOTIFICATION_ID, notificationId)
+        }
+        
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val calendar = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
             set(Calendar.MINUTE, minute)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
 
-        if (target.before(now)) {
-            target.add(Calendar.DAY_OF_YEAR, 1)
+        // If time has passed today, schedule for tomorrow
+        if (calendar.before(Calendar.getInstance())) {
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
         }
 
-        val initialDelay = target.timeInMillis - now.timeInMillis
-
-        val workRequest = PeriodicWorkRequestBuilder<DailyNotificationWorker>(
-            24, TimeUnit.HOURS
-        )
-            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
-            .setInputData(
-                workDataOf(
-                    DailyNotificationWorker.KEY_TITLE to title,
-                    DailyNotificationWorker.KEY_MESSAGE to message
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                 alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
                 )
+            } else {
+                // Fallback or ask for permission. For now, try non-exact or just log.
+                // Best practice is to prompt user, but for now we attempt to set it.
+                 alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            }
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
             )
-            .addTag(tag)
-            .build()
-        // Use UPDATE so we don't duplicate or cancel running jobs unnecessarily, 
-        // but if we change the time/message logic, clean install or REPLACE might be needed. 
-        // CANCEL_AND_REENQUEUE is safer during dev to ensure new times apply.
-        // Actually UPDATE is API 26+? No, ExistingPeriodicWorkPolicy.UPDATE is recent.
-        // Default to KEEP or UPDATE. UPDATE is best.
-        // But to be safe with older WorkManager versions (just added 2.9.0), UPDATE is fine.
-        workManager.enqueueUniquePeriodicWork(
-            tag,
-            ExistingPeriodicWorkPolicy.UPDATE, 
-            workRequest
-        )
+        }
     }
 }

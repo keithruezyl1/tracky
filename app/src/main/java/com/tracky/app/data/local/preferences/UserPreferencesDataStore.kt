@@ -40,6 +40,32 @@ class UserPreferencesDataStore @Inject constructor(
         val HOME_TIMEZONE = stringPreferencesKey("home_timezone")
         val STREAK_LAST_ANIMATED_COUNT = androidx.datastore.preferences.core.intPreferencesKey("streak_last_animated_count")
         val STREAK_LAST_ANIMATED_DATE = stringPreferencesKey("streak_last_animated_date")
+        val REANALYZING_ENTRY_ID = androidx.datastore.preferences.core.longPreferencesKey("reanalyzing_entry_id")
+        val REANALYZING_ENTRY_TYPE = stringPreferencesKey("reanalyzing_entry_type")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Re-analysis State
+    // ─────────────────────────────────────────────────────────────────────────
+
+    val reanalyzingEntryId: Flow<Long?> = dataStore.data.map { preferences ->
+        preferences[Keys.REANALYZING_ENTRY_ID]
+    }
+    
+    val reanalyzingEntryType: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.REANALYZING_ENTRY_TYPE]
+    }
+
+    suspend fun setReanalyzingState(id: Long?, type: String?) {
+        dataStore.edit { preferences ->
+            if (id == null) {
+                preferences.remove(Keys.REANALYZING_ENTRY_ID)
+                preferences.remove(Keys.REANALYZING_ENTRY_TYPE)
+            } else {
+                preferences[Keys.REANALYZING_ENTRY_ID] = id
+                preferences[Keys.REANALYZING_ENTRY_TYPE] = type ?: "food"
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

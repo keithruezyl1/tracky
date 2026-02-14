@@ -13,6 +13,7 @@ import com.tracky.app.data.local.dao.DailyLogSummaryDao;
 import com.tracky.app.data.local.dao.ExerciseEntryDao;
 import com.tracky.app.data.local.dao.FoodEntryDao;
 import com.tracky.app.data.local.dao.FoodsDatasetDao;
+import com.tracky.app.data.local.dao.ReanalysisBackupDao;
 import com.tracky.app.data.local.dao.SavedEntryDao;
 import com.tracky.app.data.local.dao.UserProfileDao;
 import com.tracky.app.data.local.dao.WeightEntryDao;
@@ -31,6 +32,7 @@ import com.tracky.app.di.DatabaseModule_ProvideDatabaseFactory;
 import com.tracky.app.di.DatabaseModule_ProvideExerciseEntryDaoFactory;
 import com.tracky.app.di.DatabaseModule_ProvideFoodEntryDaoFactory;
 import com.tracky.app.di.DatabaseModule_ProvideFoodsDatasetDaoFactory;
+import com.tracky.app.di.DatabaseModule_ProvideReanalysisBackupDaoFactory;
 import com.tracky.app.di.DatabaseModule_ProvideSavedEntryDaoFactory;
 import com.tracky.app.di.DatabaseModule_ProvideUserProfileDaoFactory;
 import com.tracky.app.di.DatabaseModule_ProvideWeightEntryDaoFactory;
@@ -450,45 +452,45 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
-      static String com_tracky_app_ui_screens_onboarding_OnboardingViewModel = "com.tracky.app.ui.screens.onboarding.OnboardingViewModel";
-
-      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
-
-      static String com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel = "com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel";
-
       static String com_tracky_app_ui_screens_settings_SettingsViewModel = "com.tracky.app.ui.screens.settings.SettingsViewModel";
-
-      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
 
       static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
 
+      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
+
+      static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
+
       static String com_tracky_app_ui_screens_goals_DailyGoalsViewModel = "com.tracky.app.ui.screens.goals.DailyGoalsViewModel";
+
+      static String com_tracky_app_ui_screens_onboarding_OnboardingViewModel = "com.tracky.app.ui.screens.onboarding.OnboardingViewModel";
 
       static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
 
-      @KeepFieldType
-      OnboardingViewModel com_tracky_app_ui_screens_onboarding_OnboardingViewModel2;
-
-      @KeepFieldType
-      HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
-
-      @KeepFieldType
-      EntryDetailViewModel com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel2;
+      static String com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel = "com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel";
 
       @KeepFieldType
       SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
 
       @KeepFieldType
+      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
+
+      @KeepFieldType
       SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
 
       @KeepFieldType
-      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
+      HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
 
       @KeepFieldType
       DailyGoalsViewModel com_tracky_app_ui_screens_goals_DailyGoalsViewModel2;
 
       @KeepFieldType
+      OnboardingViewModel com_tracky_app_ui_screens_onboarding_OnboardingViewModel2;
+
+      @KeepFieldType
       WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
+
+      @KeepFieldType
+      EntryDetailViewModel com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel2;
     }
   }
 
@@ -552,21 +554,24 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
 
     @IdentifierNameString
     private static final class LazyClassKeyProvider {
+      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
+
       static String com_tracky_app_ui_screens_goals_DailyGoalsViewModel = "com.tracky.app.ui.screens.goals.DailyGoalsViewModel";
 
       static String com_tracky_app_ui_screens_onboarding_OnboardingViewModel = "com.tracky.app.ui.screens.onboarding.OnboardingViewModel";
 
-      static String com_tracky_app_ui_screens_saved_SavedEntriesViewModel = "com.tracky.app.ui.screens.saved.SavedEntriesViewModel";
-
-      static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
+      static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
 
       static String com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel = "com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel";
 
-      static String com_tracky_app_ui_screens_settings_SettingsViewModel = "com.tracky.app.ui.screens.settings.SettingsViewModel";
-
       static String com_tracky_app_ui_screens_home_HomeViewModel = "com.tracky.app.ui.screens.home.HomeViewModel";
 
-      static String com_tracky_app_ui_screens_splash_SplashViewModel = "com.tracky.app.ui.screens.splash.SplashViewModel";
+      static String com_tracky_app_ui_screens_settings_SettingsViewModel = "com.tracky.app.ui.screens.settings.SettingsViewModel";
+
+      static String com_tracky_app_ui_screens_weight_WeightTrackerViewModel = "com.tracky.app.ui.screens.weight.WeightTrackerViewModel";
+
+      @KeepFieldType
+      SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
 
       @KeepFieldType
       DailyGoalsViewModel com_tracky_app_ui_screens_goals_DailyGoalsViewModel2;
@@ -575,22 +580,19 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
       OnboardingViewModel com_tracky_app_ui_screens_onboarding_OnboardingViewModel2;
 
       @KeepFieldType
-      SavedEntriesViewModel com_tracky_app_ui_screens_saved_SavedEntriesViewModel2;
-
-      @KeepFieldType
-      WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
+      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
 
       @KeepFieldType
       EntryDetailViewModel com_tracky_app_ui_screens_entrydetail_EntryDetailViewModel2;
 
       @KeepFieldType
-      SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
-
-      @KeepFieldType
       HomeViewModel com_tracky_app_ui_screens_home_HomeViewModel2;
 
       @KeepFieldType
-      SplashViewModel com_tracky_app_ui_screens_splash_SplashViewModel2;
+      SettingsViewModel com_tracky_app_ui_screens_settings_SettingsViewModel2;
+
+      @KeepFieldType
+      WeightTrackerViewModel com_tracky_app_ui_screens_weight_WeightTrackerViewModel2;
     }
 
     private static final class SwitchingProvider<T> implements Provider<T> {
@@ -780,6 +782,10 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
       return DatabaseModule_ProvideDailyLogSummaryDaoFactory.provideDailyLogSummaryDao(provideDatabaseProvider.get());
     }
 
+    private ReanalysisBackupDao reanalysisBackupDao() {
+      return DatabaseModule_ProvideReanalysisBackupDaoFactory.provideReanalysisBackupDao(provideDatabaseProvider.get());
+    }
+
     private SavedEntryDao savedEntryDao() {
       return DatabaseModule_ProvideSavedEntryDaoFactory.provideSavedEntryDao(provideDatabaseProvider.get());
     }
@@ -864,7 +870,7 @@ public final class DaggerTrackyApp_HiltComponents_SingletonC {
           return (T) new GoalRepository(singletonCImpl.dailyGoalDao());
 
           case 4: // com.tracky.app.data.repository.LoggingRepository 
-          return (T) new LoggingRepository(singletonCImpl.foodEntryDao(), singletonCImpl.exerciseEntryDao(), singletonCImpl.dailyLogSummaryDao(), singletonCImpl.streakInteractorProvider.get(), singletonCImpl.goalRepositoryProvider.get());
+          return (T) new LoggingRepository(singletonCImpl.foodEntryDao(), singletonCImpl.exerciseEntryDao(), singletonCImpl.dailyLogSummaryDao(), singletonCImpl.streakInteractorProvider.get(), singletonCImpl.goalRepositoryProvider.get(), singletonCImpl.reanalysisBackupDao());
 
           case 5: // com.tracky.app.domain.usecase.StreakInteractor 
           return (T) new StreakInteractor(singletonCImpl.dailyLogSummaryDao(), singletonCImpl.userPreferencesDataStoreProvider.get());

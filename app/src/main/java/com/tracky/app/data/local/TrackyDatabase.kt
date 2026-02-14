@@ -46,9 +46,10 @@ import kotlinx.coroutines.launch
         FoodsDatasetEntity::class,
         FoodsFtsEntity::class,
         SynonymEntity::class,
-        DailyLogSummaryEntity::class
+        DailyLogSummaryEntity::class,
+        com.tracky.app.data.local.entity.ReanalysisBackupEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class TrackyDatabase : RoomDatabase() {
@@ -62,6 +63,7 @@ abstract class TrackyDatabase : RoomDatabase() {
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun foodsDatasetDao(): FoodsDatasetDao
     abstract fun dailyLogSummaryDao(): DailyLogSummaryDao
+    abstract fun reanalysisBackupDao(): com.tracky.app.data.local.dao.ReanalysisBackupDao
 
     /**
      * Clear all user data but keep the foods dataset.

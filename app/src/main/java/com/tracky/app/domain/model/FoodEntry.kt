@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 /**
  * Domain model for Food Entry
  */
+@Serializable
 data class FoodEntry(
     val id: Long = 0,
     val date: String,
@@ -63,7 +64,14 @@ data class FoodItem(
      * Pending suggested update from AI (if name changed but macros were manual).
      * User can choose to apply or dismiss this.
      */
-    val pendingSuggestion: FoodItem? = null
+    val pendingSuggestion: FoodItem? = null,
+
+    /**
+     * Transient state for UI loading indicator.
+     * Not serialized.
+     */
+    @kotlinx.serialization.Transient
+    val isAnalyzing: Boolean = false
 ) {
     /**
      * Check if item is eligible for anchor reuse (skip AI call).

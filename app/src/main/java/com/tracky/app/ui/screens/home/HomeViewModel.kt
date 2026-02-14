@@ -165,6 +165,7 @@ class HomeViewModel @Inject constructor(
         observeHapticsPreference()
         observeStreakState()
         initializeTimezone()
+        checkOrphanedBackups()
     }
 
     private fun observeStreakState() {
@@ -211,6 +212,20 @@ class HomeViewModel @Inject constructor(
 
     fun dismissStreakModal() {
         _uiState.update { it.copy(showStreakModal = false) }
+    }
+
+    private fun checkOrphanedBackups() {
+        viewModelScope.launch {
+            val prefId = preferencesDataStore.reanalyzingEntryId.first()
+            if (prefId != null) {
+                isReanalyzing = true
+                // Give some time for DraftLoggingInteractor to initialize and potentially start a draft
+                kotlinx.coroutines.delay(2000)
+                if (draftLoggingInteractor.draftState.value is DraftState.Idle) {
+                    restoreBackup()
+                }
+            }
+        }
     }
 
     private fun initializeTimezone() {
@@ -366,17 +381,27 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             if (reanalyzeId != null && reanalyzeType != null) {
                 isReanalyzing = true
+                preferencesDataStore.setReanalyzingState(reanalyzeId, reanalyzeType)
                 if (reanalyzeType == "food") {
-                    backupFoodEntry = loggingRepository.getFoodEntryById(reanalyzeId)
+                    val entry = loggingRepository.getFoodEntryById(reanalyzeId)
+                    if (entry != null) {
+                        backupFoodEntry = entry
+                        loggingRepository.saveFoodBackup(entry)
+                        loggingRepository.deleteFoodEntry(reanalyzeId)
+                    }
                     backupExerciseEntry = null
-                    loggingRepository.deleteFoodEntry(reanalyzeId)
                 } else {
-                    backupExerciseEntry = loggingRepository.getExerciseEntryById(reanalyzeId)
+                    val entry = loggingRepository.getExerciseEntryById(reanalyzeId)
+                    if (entry != null) {
+                        backupExerciseEntry = entry
+                        loggingRepository.saveExerciseBackup(entry)
+                        loggingRepository.deleteExerciseEntry(reanalyzeId)
+                    }
                     backupFoodEntry = null
-                    loggingRepository.deleteExerciseEntry(reanalyzeId)
                 }
             } else {
                 isReanalyzing = false
+                preferencesDataStore.setReanalyzingState(null, null)
                 backupFoodEntry = null
                 backupExerciseEntry = null
             }
@@ -392,6 +417,10 @@ class HomeViewModel @Inject constructor(
 
     fun logFoodFromText(text: String) {
         viewModelScope.launch {
+             isReanalyzing = false
+             preferencesDataStore.setReanalyzingState(null, null)
+             backupFoodEntry = null
+             backupExerciseEntry = null
             // Append user chat message
             val date = _selectedDate.value.toString()
             chatRepository.addUserTextMessage(date, text)
@@ -436,9 +465,12 @@ class HomeViewModel @Inject constructor(
                     showSuccessOverlay.value = true
                     // Refresh summary and week summaries
                     // Clear re-analysis state
+                    val id = backupFoodEntry?.id
                     isReanalyzing = false
+                    preferencesDataStore.setReanalyzingState(null, null)
                     backupFoodEntry = null
                     backupExerciseEntry = null
+                    id?.let { loggingRepository.deleteBackup(it, "food") }
                 }
                 is ConfirmResult.Error -> {
                     _uiState.update { it.copy(error = result.message) }
@@ -456,9 +488,12 @@ class HomeViewModel @Inject constructor(
                     showSuccessOverlay.value = true
                     // Refresh summary and week summaries
                     // Clear re-analysis state
+                    val id = backupExerciseEntry?.id
                     isReanalyzing = false
+                    preferencesDataStore.setReanalyzingState(null, null)
                     backupFoodEntry = null
                     backupExerciseEntry = null
+                    id?.let { loggingRepository.deleteBackup(it, "exercise") }
                 }
                 is ConfirmResult.Error -> {
                     _uiState.update { it.copy(error = result.message) }
@@ -478,17 +513,27 @@ class HomeViewModel @Inject constructor(
 
     private fun restoreBackup() {
         viewModelScope.launch {
-            val food = backupFoodEntry
-            if (food != null) {
-                loggingRepository.saveFoodEntry(food)
-            }
-            
-            val exercise = backupExerciseEntry
-            if (exercise != null) {
-                loggingRepository.saveExerciseEntry(exercise)
+            val prefId = preferencesDataStore.reanalyzingEntryId.first()
+            val prefType = preferencesDataStore.reanalyzingEntryType.first()
+
+            if (prefId != null && prefType != null) {
+                if (prefType == "food") {
+                    val food = backupFoodEntry ?: loggingRepository.getFoodBackup(prefId)
+                    if (food != null) {
+                        loggingRepository.saveFoodEntry(food)
+                        loggingRepository.deleteBackup(prefId, "food")
+                    }
+                } else {
+                    val exercise = backupExerciseEntry ?: loggingRepository.getExerciseBackup(prefId)
+                    if (exercise != null) {
+                        loggingRepository.saveExerciseEntry(exercise)
+                        loggingRepository.deleteBackup(prefId, "exercise")
+                    }
+                }
             }
             
             isReanalyzing = false
+            preferencesDataStore.setReanalyzingState(null, null)
             backupFoodEntry = null
             backupExerciseEntry = null
         }
@@ -554,27 +599,26 @@ class HomeViewModel @Inject constructor(
      * This will delete the old entry and create a new draft for the user to confirm
      */
     fun reanalyzeFoodEntry(foodEntryId: Long, newText: String) {
-        viewModelScope.launch {
-            try {
-                // Delete the old food entry
-                loggingRepository.deleteFoodEntry(foodEntryId)
-                
-                // Add user message for the re-analysis
-                val date = _selectedDate.value.toString()
-                chatRepository.addUserTextMessage(date, "Re-analyzed: $newText")
-                
-                // Start drafting with the new text
-                draftLoggingInteractor.draftFoodFromText(newText, _selectedDate.value)
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = "Failed to re-analyze: ${e.message}") }
-            }
-        }
+        logAutoFromText(newText, foodEntryId, "food")
+    }
+
+    fun reanalyzeExerciseEntry(exerciseId: Long, newText: String) {
+        logAutoFromText(newText, exerciseId, "exercise")
     }
 
     fun toggleSidebar() {
         _uiState.update { it.copy(showSidebar = !it.showSidebar) }
     }
 
+    fun addToDraft(text: String, isFood: Boolean) {
+        viewModelScope.launch {
+            if (isFood) {
+                draftLoggingInteractor.addToFoodDraft(text)
+            } else {
+                draftLoggingInteractor.addToExerciseDraft(text)
+            }
+        }
+    }
 
     private fun getTodayDate(): LocalDate {
         return Clock.System.now()
