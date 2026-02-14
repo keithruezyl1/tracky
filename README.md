@@ -44,7 +44,7 @@
 
 ### Backend (Serverless)
 *   **Platform**: Cloudflare Workers (TypeScript)
-*   **AI**: Gemini Pro / GPT-4o-mini (Text & Vision)
+*   **AI**: GPT-4o-mini (Text & Vision)
 *   **Data**: AI-first
 *   **Cache**: Workers KV
 
