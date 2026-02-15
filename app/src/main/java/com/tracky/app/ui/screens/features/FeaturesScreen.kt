@@ -72,10 +72,12 @@ fun FeaturesScreen(
                 icon = Icons.Outlined.Restaurant,
                 features = listOf(
                     "Chat-Style Logging" to "Just type what you ate like you're texting a friend, like \"Ate 2 eggs and toast\"!",
-                    "Visual Recognition" to "Snap a photo of your meal. Tracky identifies the food and estimates macros for you.",
+                    "Visual Recognition" to "Retrieval-Driven AI. Tracky identifies food using a verified canonical database—no more random guesses.",
+                    "Manual Control" to "Full support for manual entry of calories, macros, duration, and intensity.",
                     "Auto-Detection" to "Tracky knows if you're logging a workout or a meal automatically.",
                     "Smart Drafts" to "Review every entry before you log it. You are always in control.",
-                    "Self-Learning" to "Tracky's database learns from your edits. Prioritizes your personal history and overrides."
+                    "Data Flywheel" to "Your confirmed entries become the Gold Standard. The database adapts to YOU.",
+                    "Physics Guardrails" to "Mathematical checks ensure your macros always match your calories."
                 )
             )
 
@@ -83,8 +85,9 @@ fun FeaturesScreen(
                 title = "Smart Dashboard",
                 icon = Icons.Outlined.AutoAwesome,
                 features = listOf(
-                    "6-Day Strip" to "Swipe to see your past week's consistency at a glance.",
+                    "6-Day Strip" to "Swipe to see your past week's consistency with smooth sliding transitions.",
                     "Live Rings" to "Visual progress rings for Calories, Protein, Carbs, and Fat.",
+                    "Premium Feel" to "Experience rich haptics and sound effects as you interact.",
                     "Quick Goals" to "Tap your daily summary to adjust your goals on the fly."
                 )
             )
@@ -161,11 +164,7 @@ fun FeaturesScreen(
                         horizontalAlignment = Alignment.Start,
                         verticalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XXS)
                     ) {
-                        Text(
-                            text = "Follow me",
-                            style = TrackyTypography.BodyLarge,
-                            color = TrackyColors.TextPrimary
-                        )
+                    
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XXS),
                             verticalAlignment = Alignment.CenterVertically

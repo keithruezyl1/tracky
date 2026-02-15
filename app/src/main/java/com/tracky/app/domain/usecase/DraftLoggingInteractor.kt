@@ -20,6 +20,7 @@ import com.tracky.app.domain.model.FoodEntry
 import com.tracky.app.domain.model.FoodItem
 import com.tracky.app.domain.model.Provenance
 import com.tracky.app.domain.model.ProvenanceSource
+import com.tracky.app.util.toTitleCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,8 +59,7 @@ class DraftLoggingInteractor @Inject constructor(
     val draftState: StateFlow<DraftState> = _draftState.asStateFlow()
 
     private fun sentenceCase(text: String): String {
-        if (text.isEmpty()) return text
-        return text.lowercase().replaceFirstChar { it.uppercase() }
+        return text.toTitleCase()
     }
 
     private fun parseIntensityFromText(text: String): ExerciseIntensity? {
@@ -582,6 +582,25 @@ class DraftLoggingInteractor @Inject constructor(
     suspend fun addToFoodDraft(text: String) {
         val current = _draftState.value
         if (current is DraftState.FoodDraft) {
+            val originalItems = current.data.items
+            // 1. Emit optimistic loading state
+            val placeholder = DraftFoodItem(
+                name = "Analyzing...",
+                matchedName = null,
+                quantity = 1.0,
+                unit = "serving",
+                calories = 0f,
+                carbsG = 0f,
+                proteinG = 0f,
+                fatG = 0f,
+                provenance = Provenance(ProvenanceSource.AI_ESTIMATE, null, 0f),
+                resolved = false,
+                isAnalyzing = true
+            )
+            _draftState.value = DraftState.FoodDraft(
+                current.data.copy(items = originalItems + placeholder)
+            )
+
             try {
                 val profile = profileRepository.getProfileOnce()
                 val userWeightKg = profile?.currentWeightKg ?: 70f
@@ -609,14 +628,87 @@ class DraftLoggingInteractor @Inject constructor(
                                 )
                             }
                             
-                            val combinedItems = current.data.items + newItems
+                            val combinedItems = originalItems + newItems
                             val draft = current.data.copy(items = combinedItems)
                             _draftState.value = DraftState.FoodDraft(draft)
                             resolveFoodDraft(draft)
+                        } else {
+                            // Revert on empty body
+                             _draftState.value = DraftState.FoodDraft(current.data.copy(items = originalItems))
                         }
+                } else {
+                    // Revert on error
+                    _draftState.value = DraftState.FoodDraft(current.data.copy(items = originalItems))
                 }
             } catch (e: Exception) {
-                // Ignore addition errors, maybe show toast in UI?
+                // Revert on exception
+                _draftState.value = DraftState.FoodDraft(current.data.copy(items = originalItems))
+            }
+        }
+    }
+
+    suspend fun addToFoodDraftFromImage(imageBase64: String) {
+        val current = _draftState.value
+        if (current is DraftState.FoodDraft) {
+            val originalItems = current.data.items
+             // 1. Emit optimistic loading state
+            val placeholder = DraftFoodItem(
+                name = "Analyzing...",
+                matchedName = null,
+                quantity = 1.0,
+                unit = "serving",
+                calories = 0f,
+                carbsG = 0f,
+                proteinG = 0f,
+                fatG = 0f,
+                provenance = Provenance(ProvenanceSource.AI_ESTIMATE, null, 0f),
+                resolved = false,
+                isAnalyzing = true
+            )
+            _draftState.value = DraftState.FoodDraft(
+                current.data.copy(items = originalItems + placeholder)
+            )
+
+            try {
+                val profile = profileRepository.getProfileOnce()
+                val userWeightKg = profile?.currentWeightKg ?: 70f
+                val response = backendApi.logFood(LogFoodRequest(text = null, imageBase64 = imageBase64, userWeightKg = userWeightKg))
+                
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body != null) {
+                        val newItems = body.items.map { dto ->
+                            DraftFoodItem(
+                                name = sentenceCase(dto.name),
+                                matchedName = null,
+                                quantity = dto.quantity.toDouble(),
+                                unit = dto.unit,
+                                calories = dto.calories ?: 0f,
+                                carbsG = dto.carbs ?: 0f,
+                                proteinG = dto.protein ?: 0f,
+                                fatG = dto.fat ?: 0f,
+                                provenance = if (dto.calories != null && dto.calories > 0f)
+                                    Provenance(ProvenanceSource.AI_ESTIMATE, null, dto.confidence)
+                                else
+                                    Provenance(ProvenanceSource.UNRESOLVED, null, 0f),
+                                resolved = dto.calories != null && dto.calories > 0f,
+                                isAnalyzing = true
+                            )
+                        }
+                        
+                        val combinedItems = originalItems + newItems
+                        val draft = current.data.copy(items = combinedItems)
+                        _draftState.value = DraftState.FoodDraft(draft)
+                        resolveFoodDraft(draft)
+                    } else {
+                         _draftState.value = DraftState.FoodDraft(current.data.copy(items = originalItems))
+                    }
+                } else {
+                     _draftState.value = DraftState.FoodDraft(current.data.copy(items = originalItems))
+                }
+            } catch (e: Exception) {
+                // Revert
+                 _draftState.value = DraftState.FoodDraft(current.data.copy(items = originalItems))
             }
         }
     }
@@ -624,6 +716,20 @@ class DraftLoggingInteractor @Inject constructor(
     suspend fun addToExerciseDraft(text: String) {
         val current = _draftState.value
         if (current is DraftState.ExerciseDraft) {
+            val originalItems = current.data.items
+             // 1. Emit optimistic loading state
+            val placeholder = DraftExerciseItem(
+                activity = "Analyzing...",
+                durationMinutes = 0,
+                metValue = 0f,
+                caloriesBurned = 0f,
+                intensity = ExerciseIntensity.MODERATE,
+                resolved = false
+            )
+             _draftState.value = DraftState.ExerciseDraft(
+                current.data.copy(items = originalItems + placeholder)
+            )
+
             try {
                 val profile = profileRepository.getProfileOnce()
                 val userWeightKg = profile?.currentWeightKg ?: 70f
@@ -644,17 +750,78 @@ class DraftLoggingInteractor @Inject constructor(
                             )
                         }
 
-                        val combinedItems = current.data.items + newItems
+                        val combinedItems = originalItems + newItems
                         val draft = current.data.copy(
                             items = combinedItems
                             // Totals recalculated in resolveExerciseDraft
                         )
                         _draftState.value = DraftState.ExerciseDraft(draft)
                         resolveExerciseDraft(draft)
+                    } else {
+                         _draftState.value = DraftState.ExerciseDraft(current.data.copy(items = originalItems))
                     }
+                } else {
+                     _draftState.value = DraftState.ExerciseDraft(current.data.copy(items = originalItems))
                 }
             } catch (e: Exception) {
-                // Ignore
+                 _draftState.value = DraftState.ExerciseDraft(current.data.copy(items = originalItems))
+            }
+        }
+    }
+
+    suspend fun addToExerciseDraftFromImage(imageBase64: String) {
+        val current = _draftState.value
+        if (current is DraftState.ExerciseDraft) {
+            val originalItems = current.data.items
+             // 1. Emit optimistic loading state
+            val placeholder = DraftExerciseItem(
+                activity = "Analyzing...",
+                durationMinutes = 0,
+                metValue = 0f,
+                caloriesBurned = 0f,
+                intensity = ExerciseIntensity.MODERATE,
+                resolved = false
+            )
+             _draftState.value = DraftState.ExerciseDraft(
+                current.data.copy(items = originalItems + placeholder)
+            )
+
+            try {
+                val profile = profileRepository.getProfileOnce()
+                val userWeightKg = profile?.currentWeightKg ?: 70f
+                val response = backendApi.logExercise(LogExerciseRequest(text = null, imageBase64 = imageBase64, userWeightKg = userWeightKg))
+                
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body != null && body.exercises.isNotEmpty()) {
+                        val newItems = body.exercises.map { parsed ->
+                            DraftExerciseItem(
+                                activity = sentenceCase(parsed.activity),
+                                durationMinutes = parsed.durationMinutes,
+                                metValue = parsed.metValue ?: 0f,
+                                caloriesBurned = parsed.caloriesBurned?.toFloat() ?: 0f,
+                                intensity = ExerciseIntensity.fromValue(parsed.intensity) ?: ExerciseIntensity.MODERATE,
+                                resolved = parsed.caloriesBurned != null
+                            )
+                        }
+
+                        val combinedItems = originalItems + newItems
+                        val draft = current.data.copy(
+                            items = combinedItems
+                        )
+                        _draftState.value = DraftState.ExerciseDraft(draft)
+                        // Only resolve items that don't already have calories from the image
+                        if (newItems.any { !it.resolved }) {
+                            resolveExerciseDraft(draft)
+                        }
+                    } else {
+                         _draftState.value = DraftState.ExerciseDraft(current.data.copy(items = originalItems))
+                    }
+                } else {
+                     _draftState.value = DraftState.ExerciseDraft(current.data.copy(items = originalItems))
+                }
+            } catch (e: Exception) {
+                 _draftState.value = DraftState.ExerciseDraft(current.data.copy(items = originalItems))
             }
         }
     }

@@ -60,7 +60,8 @@ fun TrackyInput(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     singleLine: Boolean = true,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
-    visualTransformation: VisualTransformation = VisualTransformation.None
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    inputFieldModifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -101,7 +102,8 @@ fun TrackyInput(
                         color = borderColor
                     ),
                     shape = TrackyShapes.Medium
-                ),
+                )
+                .then(inputFieldModifier),
             enabled = enabled,
             readOnly = readOnly,
             textStyle = TrackyTypography.BodyLarge.copy(

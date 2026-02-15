@@ -10,6 +10,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +46,8 @@ fun TrackySelect(
         }
     }
 
+    val focusRequester = remember { FocusRequester() }
+
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = !expanded },
@@ -53,17 +57,23 @@ fun TrackySelect(
             value = value,
             onValueChange = { 
                 onValueChange(it)
-                expanded = true
+                if (!expanded) expanded = true
             },
             readOnly = false,
             label = label,
             placeholder = placeholder,
             trailingIcon = {
-                Box(modifier = Modifier.clickable { expanded = !expanded }) {
+                Box(modifier = Modifier.clickable { 
+                    expanded = !expanded 
+                    if (expanded) {
+                        focusRequester.requestFocus()
+                    }
+                }) {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                 }
             },
-            modifier = Modifier.menuAnchor()
+             modifier = Modifier.fillMaxWidth(),
+            inputFieldModifier = Modifier.menuAnchor().focusRequester(focusRequester)
         )
 
         // Only show if we have options to show

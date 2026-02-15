@@ -3,6 +3,7 @@ package com.tracky.app.ui.screens.entrydetail
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -56,6 +57,7 @@ import com.tracky.app.ui.components.TrackyDivider
 import com.tracky.app.ui.components.TrackyFullScreenLoading
 import com.tracky.app.ui.components.TrackyInfoCard
 import com.tracky.app.ui.components.TrackyLoadingIndicator
+import com.tracky.app.ui.components.TrackyLoadingOverlay
 import com.tracky.app.ui.components.TrackySectionTitle
 import com.tracky.app.ui.components.TrackyTopBarWithBack
 import androidx.compose.foundation.clickable
@@ -71,6 +73,7 @@ import com.tracky.app.ui.components.ProvenanceLabel
 import com.tracky.app.ui.components.TrackyButtonPrimary
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
+import com.tracky.app.util.toTitleCase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,7 +82,7 @@ fun EntryDetailScreen(
     entryType: String,
     viewModel: EntryDetailViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
-    onReanalyze: (String, Long, String) -> Unit,
+    onReanalyze: () -> Unit,
     onEntryDeleted: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -104,7 +107,7 @@ fun EntryDetailScreen(
             val title = if (entryType == "food") {
                 val items = uiState.foodEntry?.items
                 if (!items.isNullOrEmpty()) {
-                    val firstItem = items.first().name
+                    val firstItem = items.first().name.toTitleCase()
                     val remainingCount = items.size - 1
                     
                     if (remainingCount > 0) {
@@ -123,7 +126,7 @@ fun EntryDetailScreen(
             } else {
                 val items = uiState.exerciseEntry?.items
                 if (!items.isNullOrEmpty()) {
-                    val firstItem = items.first().activityName
+                    val firstItem = items.first().activityName.toTitleCase()
                     val remainingCount = items.size - 1
                     
                     if (remainingCount > 0) {
@@ -163,34 +166,46 @@ fun EntryDetailScreen(
             )
         }
     ) { paddingValues ->
-        if (uiState.isLoading) {
-            TrackyFullScreenLoading()
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(TrackyColors.Background)
-                    .padding(paddingValues)
-                    .padding(horizontal = TrackyTokens.Spacing.ScreenPadding)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.M)
-            ) {
-                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)) {
+            
+            if (uiState.foodEntry != null || uiState.exerciseEntry != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(TrackyColors.Background)
+                        .padding(horizontal = TrackyTokens.Spacing.ScreenPadding)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.M)
+                ) {
+                    Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
 
-                when {
-                    uiState.foodEntry != null -> FoodEntryDetail(
-                        entry = uiState.foodEntry!!,
-                        onItemDelete = viewModel::deleteFoodItem,
-                        onReviewClick = { foodSuggestionToReview = it }
-                    )
-                    uiState.exerciseEntry != null -> ExerciseEntryDetail(
-                        entry = uiState.exerciseEntry!!,
-                        onItemDelete = viewModel::deleteExerciseItem,
-                        onReviewClick = { exerciseSuggestionToReview = it }
-                    )
+                    when {
+                        uiState.foodEntry != null -> FoodEntryDetail(
+                            entry = uiState.foodEntry!!,
+                            onItemDelete = viewModel::deleteFoodItem,
+                            onReviewClick = { foodSuggestionToReview = it }
+                        )
+                        uiState.exerciseEntry != null -> ExerciseEntryDetail(
+                            entry = uiState.exerciseEntry!!,
+                            onItemDelete = viewModel::deleteExerciseItem,
+                            onReviewClick = { exerciseSuggestionToReview = it }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(TrackyTokens.Spacing.L))
                 }
 
-                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.L))
+                val isAnalyzing = uiState.foodEntry?.items?.any { it.isAnalyzing } == true ||
+                                  uiState.exerciseEntry?.items?.any { it.isAnalyzing } == true ||
+                                  uiState.isLoading
+
+                if (isAnalyzing) {
+                    TrackyLoadingOverlay(message = "Updating...")
+                }
+            } else if (uiState.isLoading) {
+                TrackyFullScreenLoading()
             }
         }
     }
@@ -238,19 +253,7 @@ fun EntryDetailScreen(
             },
             onReanalyze = {
                 showActionsSheet = false
-                val query = if (entryType == "food") {
-                    uiState.foodEntry?.let { entry ->
-                        entry.originalInput?.takeIf { it.isNotBlank() }
-                            ?: entry.items.joinToString(", ") { "${it.quantity} ${it.unit} ${it.name}" }
-                    }
-                } else {
-                    uiState.exerciseEntry?.let { entry ->
-                        entry.originalInput?.takeIf { it.isNotBlank() }
-                            ?: entry.items.joinToString(", ") { "${it.activityName} ${it.durationMinutes} min" }
-                    }
-                }
-                
-                query?.let { onReanalyze(it, entryId, entryType) }
+                onReanalyze()
             },
             onChangeDateTime = {
                  showActionsSheet = false
@@ -476,7 +479,7 @@ private fun FoodItemRow(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    TrackyBodyText(text = item.name)
+                    TrackyBodyText(text = item.name.toTitleCase())
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XS)
@@ -534,7 +537,7 @@ private fun ExerciseItemRow(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    TrackyBodyText(text = item.activityName)
+                    TrackyBodyText(text = item.activityName.toTitleCase())
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.XS)

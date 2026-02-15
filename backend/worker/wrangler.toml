@@ -14,9 +14,18 @@ hint = "oc"
 binding = "USDA_CACHE"
 id = "b2c59df7d53f4a08af61cccf3b56a377"
 
+# Canonical Food Registry (Flywheel)
+[[kv_namespaces]]
+binding = "FOOD_REGISTRY"
+id = "43a2021c5bfc4debab91624f85a3c688"
+
+# Vector Index for Food Embeddings
+[[vectorize]]
+binding = "FOOD_VECTORS"
+index_name = "food-vectors-v1"
+
 # Environment variables (set via wrangler secret or dashboard)
 # OPENAI_API_KEY - set via `npx wrangler secret put OPENAI_API_KEY`
-# USDA_API_KEY - set via `npx wrangler secret put USDA_API_KEY`
 # SERP_API_KEY - set via `npx wrangler secret put SERP_API_KEY`
 [vars]
 ENVIRONMENT = "development"

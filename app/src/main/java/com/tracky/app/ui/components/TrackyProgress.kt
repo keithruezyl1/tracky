@@ -164,20 +164,20 @@ fun TrackyCaloriesProgress(
         val progressGradient = when {
             remaining < 0 -> Brush.horizontalGradient( // Exceeded (Red)
                 listOf(
-                    TrackyColors.Error, 
-                    TrackyColors.Error.copy(alpha = 0.6f)
+                    TrackyColors.Error.copy(alpha = 0.6f),
+                    TrackyColors.Error
                 )
             )
             targetProgress >= 0.98f -> Brush.horizontalGradient( // Full/Goal Met (Green)
                 listOf(
-                    TrackyColors.Success, 
-                    TrackyColors.Success.copy(alpha = 0.6f)
+                    TrackyColors.Success.copy(alpha = 0.6f),
+                    TrackyColors.Success
                 )
             )
             else -> Brush.horizontalGradient( // Normal (Blue)
                 listOf(
-                    TrackyColors.BrandPrimary,
-                    TrackyColors.BrandTint
+                    TrackyColors.BrandTint,
+                    TrackyColors.BrandPrimary
                 )
             )
         }

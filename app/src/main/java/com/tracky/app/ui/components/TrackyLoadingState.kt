@@ -163,3 +163,32 @@ fun TrackyDraftingState(
         }
     }
 }
+
+/**
+ * Tracky Loading Overlay
+ * 
+ * Overlays a loading state on top of content (blur + spinner).
+ */
+@Composable
+fun TrackyLoadingOverlay(
+    modifier: Modifier = Modifier,
+    message: String? = null
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(TrackyColors.Background.copy(alpha = 0.7f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            TrackyLoadingIndicator()
+            if (message != null) {
+                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+                TrackyBodySmall(
+                    text = message,
+                    color = TrackyColors.TextSecondary
+                )
+            }
+        }
+    }
+}

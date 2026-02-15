@@ -7,10 +7,13 @@ import com.tracky.app.data.local.dao.SavedEntryDao
 import com.tracky.app.data.local.entity.SavedEntryEntity
 import com.tracky.app.data.remote.TrackyBackendApi
 import com.tracky.app.data.remote.dto.ResolveExerciseRequest
+import com.tracky.app.util.toTitleCase
+import com.tracky.app.data.remote.dto.LogFoodRequest
 import com.tracky.app.data.repository.FoodsRepository
 import com.tracky.app.data.repository.LoggingRepository
 import com.tracky.app.data.repository.ProfileRepository
 import com.tracky.app.data.repository.ResolvedFoodResult
+import com.tracky.app.domain.logic.NutritionConflictDetector
 import com.tracky.app.domain.model.ExerciseEntry
 import com.tracky.app.domain.model.ExerciseIntensity
 import com.tracky.app.domain.model.ExerciseItem
@@ -42,7 +45,8 @@ class EntryDetailViewModel @Inject constructor(
     private val weightRepository: com.tracky.app.data.repository.WeightRepository,
     private val soundManager: com.tracky.app.ui.sound.SoundManager,
     private val hapticManager: com.tracky.app.ui.haptics.HapticManager,
-    private val canonicalKeyGenerator: com.tracky.app.domain.resolver.CanonicalKeyGenerator
+    private val canonicalKeyGenerator: com.tracky.app.domain.resolver.CanonicalKeyGenerator,
+    private val nutritionConflictDetector: NutritionConflictDetector
 ) : ViewModel() {
 
     private val entryId: Long = savedStateHandle.get<Long>("entryId") ?: -1L
@@ -149,6 +153,9 @@ class EntryDetailViewModel @Inject constructor(
 
                 // Trigger Background Re-analysis
                 itemsToReanalyze.forEach { (itemId, revision) ->
+                    // Launch separate coroutines for parallel reanalysis if needed, or sequential
+                    // Since reanalyzeFoodItem is suspend, calling it here will block this update loop.
+                    // This is acceptable as updateFoodEntry is already in viewModelScope.launch
                     reanalyzeFoodItem(entry.id, itemId, revision)
                 }
 
@@ -158,27 +165,75 @@ class EntryDetailViewModel @Inject constructor(
         }
     }
 
-    private fun reanalyzeFoodItem(entryId: Long, itemId: Long, revision: Long) {
-        viewModelScope.launch {
+    private suspend fun reanalyzeFoodItem(entryId: Long, itemId: Long, revision: Long) {
             try {
                 // 1. Fetch current item info to get name (snapshot)
-                val currentEntry = loggingRepository.getFoodEntryById(entryId) ?: return@launch
-                val currentItem = currentEntry.items.find { it.id == itemId } ?: return@launch
+                val currentEntry = loggingRepository.getFoodEntryById(entryId) ?: return
+                val currentItem = currentEntry.items.find { it.id == itemId } ?: return
                 
                 // sanity check revision
-                if (currentItem.analysisRevision != revision) return@launch
+                if (currentItem.analysisRevision != revision) return
 
-                // 2. Resolve
-                val result = foodsRepository.resolveFood(currentItem.name, currentItem.quantity, currentItem.unit)
+                val userWeightKg = getCurrentWeight()
                 
-                // 3. Update DB
-                val freshEntry = loggingRepository.getFoodEntryById(entryId) ?: return@launch
-                val freshItem = freshEntry.items.find { it.id == itemId } ?: return@launch
+                // 2. Fetch AI Estimates via log/food
+                // We construct a natural language query to get the AI to re-evaluate the item
+                val query = "${currentItem.quantity} ${currentItem.unit} ${currentItem.name}"
+                val logRequest = LogFoodRequest(
+                    text = query,
+                    imageBase64 = null,
+                    userWeightKg = userWeightKg
+                )
+                
+                var aiCalories: Float? = null
+                var aiCarbs: Float? = null
+                var aiProtein: Float? = null
+                var aiFat: Float? = null
+
+                try {
+                    val response = backendApi.logFood(logRequest)
+                    if (response.isSuccessful) {
+                        val body = response.body()
+                        val firstItem = body?.items?.firstOrNull()
+                        if (firstItem != null) {
+                            aiCalories = firstItem.calories
+                            aiCarbs = firstItem.carbs
+                            aiProtein = firstItem.protein
+                            aiFat = firstItem.fat
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Network/backend error: Proceed without AI estimates (will likely be Unresolved unless local match exists)
+                    // e.printStackTrace() 
+                }
+
+                // 3. Resolve using Repository (with AI fallback data)
+                val result = foodsRepository.resolveFood(
+                    name = currentItem.name, 
+                    quantity = currentItem.quantity, 
+                    unit = currentItem.unit,
+                    aiCalories = aiCalories,
+                    aiCarbsG = aiCarbs,
+                    aiProteinG = aiProtein,
+                    aiFatG = aiFat
+                )
+                
+                // 4. Update DB
+                val freshEntry = loggingRepository.getFoodEntryById(entryId) ?: return
+                val freshItem = freshEntry.items.find { it.id == itemId } ?: return
 
                 if (freshItem.analysisRevision == revision) {
                     val newItem = if (result is ResolvedFoodResult.Success) {
                         val resolved = result.foodItem
-                        if (!freshItem.isManualMacros) {
+                        
+                        // Decision Matrix:
+                        // Case 1: Auto (AI) source, NOT manual macros -> Overwrite
+                        // Case 2: Manual (User) source OR Manual macros -> Suggest if material diff
+                        
+                        val isManualSource = freshItem.provenance.source == ProvenanceSource.USER_OVERRIDE
+                        val isLocked = freshItem.isManualMacros || isManualSource
+
+                        if (!isLocked) {
                             // Rule A: Overwrite
                             freshItem.copy(
                                 calories = resolved.calories,
@@ -190,11 +245,18 @@ class EntryDetailViewModel @Inject constructor(
                                 isAnalyzing = false
                             )
                         } else {
-                            // Rule B: Pending Suggestion
-                            freshItem.copy(
-                                pendingSuggestion = resolved.copy(id = freshItem.id),
-                                isAnalyzing = false
-                            )
+                            // Rule B: Pending Suggestion (Only if material diff)
+                            val hasMaterialDiff = nutritionConflictDetector.isMaterialDifference(freshItem, resolved)
+                            
+                            if (hasMaterialDiff) {
+                                freshItem.copy(
+                                    pendingSuggestion = resolved.copy(id = freshItem.id, isAnalyzing = false),
+                                    isAnalyzing = false
+                                )
+                            } else {
+                                // No material diff, just finish analyzing without changes
+                                freshItem.copy(isAnalyzing = false)
+                            }
                         }
                     } else {
                         // Failure: Clear isAnalyzing but keep original values
@@ -226,7 +288,6 @@ class EntryDetailViewModel @Inject constructor(
                      loggingRepository.updateFoodEntry(entryWithClearedLoading)
                 }
             }
-        }
     }
     
     fun deleteFoodItem(item: FoodItem) {
@@ -276,7 +337,7 @@ class EntryDetailViewModel @Inject constructor(
                 
                 val newItem = FoodItem(
                     id = 0,
-                    name = name,
+                    name = name.toTitleCase(),
                     matchedName = null,
                     quantity = quantity,
                     unit = unit,
@@ -310,7 +371,7 @@ class EntryDetailViewModel @Inject constructor(
                 )
 
                 // Update UI and DB immediately with the placeholder/manual item
-                _uiState.update { it.copy(foodEntry = updatedEntry, isLoading = false) }
+                _uiState.update { it.copy(foodEntry = updatedEntry, isLoading = true) }
                 loggingRepository.updateFoodEntry(updatedEntry)
 
                 // If it's an auto-resolving item, trigger background analysis
@@ -322,6 +383,8 @@ class EntryDetailViewModel @Inject constructor(
                         reanalyzeFoodItem(currentEntry.id, persistedItem.id, persistedItem.analysisRevision)
                     }
                 }
+                
+                _uiState.update { it.copy(isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
@@ -346,7 +409,7 @@ class EntryDetailViewModel @Inject constructor(
                 
                 val newItem = ExerciseItem(
                     id = 0,
-                    activityName = activityName,
+                    activityName = activityName.toTitleCase(),
                     durationMinutes = durationMinutes,
                     metValue = 0f,
                     caloriesBurned = calories ?: 0f,
@@ -367,7 +430,7 @@ class EntryDetailViewModel @Inject constructor(
                 )
                 
                 // Update UI and DB immediately
-                _uiState.update { it.copy(exerciseEntry = updatedEntry) }
+                _uiState.update { it.copy(exerciseEntry = updatedEntry, isLoading = true) }
                 loggingRepository.updateExerciseEntry(updatedEntry)
 
                 // If not manual, trigger background re-analysis
@@ -378,8 +441,10 @@ class EntryDetailViewModel @Inject constructor(
                         reanalyzeExerciseItem(currentEntry.id, persistedItem.id, persistedItem.analysisRevision)
                     }
                 }
+                
+                _uiState.update { it.copy(isLoading = false) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                _uiState.update { it.copy(error = e.message, isLoading = false) } // Ensure loading cleared on error
             }
         }
     }
@@ -445,12 +510,11 @@ class EntryDetailViewModel @Inject constructor(
         }
     }
 
-    private fun reanalyzeExerciseItem(entryId: Long, itemId: Long, revision: Long) {
-        viewModelScope.launch {
+    private suspend fun reanalyzeExerciseItem(entryId: Long, itemId: Long, revision: Long) {
             try {
-                val currentEntry = loggingRepository.getExerciseEntryById(entryId) ?: return@launch
-                val currentItem = currentEntry.items.find { it.id == itemId } ?: return@launch
-                if (currentItem.analysisRevision != revision) return@launch
+                val currentEntry = loggingRepository.getExerciseEntryById(entryId) ?: return
+                val currentItem = currentEntry.items.find { it.id == itemId } ?: return
+                if (currentItem.analysisRevision != revision) return
 
                 val userWeightKg = getCurrentWeight()
                 
@@ -467,26 +531,35 @@ class EntryDetailViewModel @Inject constructor(
                 )
 
                 val body = response.body()
-                val freshEntry = loggingRepository.getExerciseEntryById(entryId) ?: return@launch
-                val freshItem = freshEntry.items.find { it.id == itemId } ?: return@launch
+                val freshEntry = loggingRepository.getExerciseEntryById(entryId) ?: return
+                val freshItem = freshEntry.items.find { it.id == itemId } ?: return
 
                 if (freshItem.analysisRevision == revision) {
                     val newItem = if (response.isSuccessful && body != null) {
-                        if (!freshItem.isManual) {
-                            freshItem.copy(
-                                caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
-                                metValue = body.metValue ?: 0f,
-                                provenance = Provenance(ProvenanceSource.DATASET, null, 1f),
-                                isAnalyzing = false
-                            )
+                         val resolved = freshItem.copy(
+                            caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
+                            metValue = body.metValue ?: 0f,
+                            provenance = Provenance(ProvenanceSource.DATASET, null, 1f),
+                            isAnalyzing = false
+                         )
+
+                        // Decision Matrix (Exercise)
+                        val isManualSource = freshItem.provenance.source == ProvenanceSource.USER_OVERRIDE
+                        val isLocked = freshItem.isManual || isManualSource
+
+                        if (!isLocked) {
+                             resolved
                         } else {
-                            freshItem.copy(
-                                pendingSuggestion = freshItem.copy(
-                                    caloriesBurned = body.caloriesBurned?.toFloat() ?: 0f,
-                                    metValue = body.metValue ?: 0f
-                                ),
-                                isAnalyzing = false
-                            )
+                            // Suggestion if material diff
+                            val hasMaterialDiff = nutritionConflictDetector.isMaterialDifference(freshItem, resolved)
+                            if (hasMaterialDiff) {
+                                freshItem.copy(
+                                    pendingSuggestion = resolved.copy(id = freshItem.id, isAnalyzing = false),
+                                    isAnalyzing = false
+                                )
+                            } else {
+                                freshItem.copy(isAnalyzing = false)
+                            }
                         }
                     } else {
                         freshItem.copy(isAnalyzing = false)
@@ -514,7 +587,6 @@ class EntryDetailViewModel @Inject constructor(
                     loggingRepository.updateExerciseEntry(entryWithClearedLoading)
                 }
             }
-        }
     }
 
     fun deleteExerciseItem(item: ExerciseItem) {
@@ -757,6 +829,61 @@ class EntryDetailViewModel @Inject constructor(
             val updatedEntry = currentEntry.copy(items = updatedItems)
             loggingRepository.updateExerciseEntry(updatedEntry)
             _uiState.update { it.copy(exerciseEntry = updatedEntry) }
+        }
+    }
+
+    fun triggerEntryReanalysis() {
+        viewModelScope.launch {
+            try {
+                if (entryType == "food") {
+                    val entry = loggingRepository.getFoodEntryById(entryId) ?: return@launch
+                    val itemsToReanalyze = mutableListOf<Pair<Long, Long>>() // itemId, revision
+                    
+                    val updatedItems = entry.items.map { item ->
+                        val newRevision = item.analysisRevision + 1
+                        // Set analyzing state but DON'T change manual flags or pending suggestions yet
+                        // Just prepare for re-check
+                        itemsToReanalyze.add(item.id to newRevision)
+                        item.copy(
+                            analysisRevision = newRevision,
+                            isAnalyzing = true,
+                            pendingSuggestion = null // Clear old suggestions when forcing re-analysis
+                        )
+                    }
+                    
+                    val updatedEntry = entry.copy(items = updatedItems)
+                    loggingRepository.updateFoodEntry(updatedEntry)
+                    _uiState.update { it.copy(foodEntry = updatedEntry) }
+                    
+                    itemsToReanalyze.forEach { (itemId, revision) ->
+                        reanalyzeFoodItem(entry.id, itemId, revision)
+                    }
+                    
+                } else {
+                    val entry = loggingRepository.getExerciseEntryById(entryId) ?: return@launch
+                    val itemsToReanalyze = mutableListOf<Pair<Long, Long>>()
+                    
+                    val updatedItems = entry.items.map { item ->
+                        val newRevision = item.analysisRevision + 1
+                        itemsToReanalyze.add(item.id to newRevision)
+                        item.copy(
+                            analysisRevision = newRevision,
+                            isAnalyzing = true,
+                            pendingSuggestion = null
+                        )
+                    }
+                    
+                    val updatedEntry = entry.copy(items = updatedItems)
+                    loggingRepository.updateExerciseEntry(updatedEntry)
+                    _uiState.update { it.copy(exerciseEntry = updatedEntry) }
+                    
+                    itemsToReanalyze.forEach { (itemId, revision) ->
+                        reanalyzeExerciseItem(entry.id, itemId, revision)
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+            }
         }
     }
 }

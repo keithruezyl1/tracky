@@ -21,6 +21,8 @@ import com.tracky.app.ui.screens.features.FeaturesScreen
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 
+import androidx.hilt.navigation.compose.hiltViewModel
+
 /**
  * Navigation routes
  */
@@ -155,22 +157,20 @@ fun TrackyNavHost(
             val entryId = backStackEntry.arguments?.getLong("entryId") ?: 0L
             val entryType = backStackEntry.arguments?.getString("entryType") ?: "food"
             
+            val viewModel = hiltViewModel<com.tracky.app.ui.screens.entrydetail.EntryDetailViewModel>(backStackEntry)
+            
             EntryDetailScreen(
                 entryId = entryId,
                 entryType = entryType,
+                viewModel = viewModel,
                 onNavigateBack = {
                     navController.popBackStack()
                 },
                 onEntryDeleted = {
                     navController.popBackStack()
                 },
-                onReanalyze = { query, id, type ->
-                    navController.previousBackStackEntry?.savedStateHandle?.let { handle ->
-                        handle.set("reanalyze_query", query)
-                        handle.set("reanalyze_id", id)
-                        handle.set("reanalyze_type", type)
-                    }
-                    navController.popBackStack()
+                onReanalyze = {
+                     viewModel.triggerEntryReanalysis()
                 }
             )
         }

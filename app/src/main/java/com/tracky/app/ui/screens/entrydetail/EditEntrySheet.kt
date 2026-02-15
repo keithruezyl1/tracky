@@ -1,5 +1,7 @@
 package com.tracky.app.ui.screens.entrydetail
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,32 +11,40 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.tracky.app.domain.model.ExerciseEntry
+import com.tracky.app.domain.model.ExerciseItem
 import com.tracky.app.domain.model.FoodEntry
 import com.tracky.app.domain.model.FoodItem
+import com.tracky.app.ui.components.BadgeStyle
+import com.tracky.app.ui.components.TrackyBadge
 import com.tracky.app.ui.components.TrackyBodySmall
 import com.tracky.app.ui.components.TrackyBodyText
 import com.tracky.app.ui.components.TrackyBottomSheet
 import com.tracky.app.ui.components.TrackyCard
+import com.tracky.app.ui.components.TrackyChip
 import com.tracky.app.ui.components.TrackyDivider
 import com.tracky.app.ui.components.TrackyInput
 import com.tracky.app.ui.components.TrackyNumberInput
-import com.tracky.app.ui.components.TrackySheetActions
-import com.tracky.app.ui.components.BadgeStyle
-import com.tracky.app.ui.components.TrackyBadge
-import com.tracky.app.ui.components.TrackyChip
 import com.tracky.app.ui.components.TrackySelect
+import com.tracky.app.ui.components.TrackySheetActions
 import com.tracky.app.ui.theme.TrackyColors
 import com.tracky.app.ui.theme.TrackyTokens
+import com.tracky.app.ui.theme.TrackyTypography
+import com.tracky.app.util.toTitleCase
 
 /**
  * Edit Food Entry Sheet
@@ -47,12 +57,15 @@ fun EditFoodEntrySheet(
     onSave: (FoodEntry) -> Unit
 ) {
     var editedItems by remember { mutableStateOf(entry.items.toMutableList()) }
+    var editingItemIndex by remember { mutableStateOf<Int?>(null) }
 
     fun sentenceCase(text: String): String {
-        val trimmed = text.trim()
-        if (trimmed.isEmpty()) return trimmed
-        val lower = trimmed.lowercase()
-        return lower.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        return text.toTitleCase()
+    }
+
+    // Handle back press within sheet to return to list
+    BackHandler(enabled = editingItemIndex != null) {
+        editingItemIndex = null
     }
 
     TrackyBottomSheet(
@@ -62,109 +75,163 @@ fun EditFoodEntrySheet(
         Column(
             modifier = Modifier.verticalScroll(rememberScrollState())
         ) {
-            // Custom Title Row with Badge
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = TrackyTokens.Spacing.M),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                androidx.compose.material3.Text(
-                    text = "Edit Food Entry",
-                    style = com.tracky.app.ui.theme.TrackyTypography.HeadlineMedium,
-                    color = TrackyColors.TextPrimary
-                )
-                
-                if (editedItems.any { it.isManualMacros }) {
-                    TrackyBadge(
-                        text = "Manual Edit",
-                        style = BadgeStyle.WARNING,
-                        compact = true
+            if (editingItemIndex == null) {
+                // LIST VIEW
+                // Title Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = TrackyTokens.Spacing.M),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Edit Food Entry",
+                        style = TrackyTypography.HeadlineMedium,
+                        color = TrackyColors.TextPrimary
                     )
+                    
+                    if (editedItems.any { it.isManualMacros }) {
+                        TrackyBadge(
+                            text = "Manual Edit",
+                            style = BadgeStyle.WARNING,
+                            compact = true
+                        )
+                    }
                 }
-            }
 
-            // Edit each item
-            editedItems.forEachIndexed { index, item ->
-                EditFoodItemCard(
-                    item = item,
-                    onItemChanged = { updatedItem ->
-                        editedItems = editedItems.toMutableList().apply {
-                            this[index] = updatedItem
+                // Item List
+                editedItems.forEachIndexed { index, item ->
+                    TrackyCard(
+                        modifier = Modifier.clickable { editingItemIndex = index }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.S)
+                        ) {
+                            TrackyBodyText(
+                                text = "${index + 1}.",
+                                color = TrackyColors.TextSecondary
+                            )
+                            TrackyBodyText(text = item.name)
                         }
                     }
-                )
-                if (index < editedItems.size - 1) {
-                    Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
+                    if (index < editedItems.size - 1) {
+                        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
+                    }
                 }
-            }
 
-            // Totals
-            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-            TrackyCard {
-                val totalCalories = editedItems.map { it.calories }.sum()
-                val totalCarbs = editedItems.map { it.carbsG.toDouble() }.sum().toFloat()
-                val totalProtein = editedItems.map { it.proteinG.toDouble() }.sum().toFloat()
-                val totalFat = editedItems.map { it.fatG.toDouble() }.sum().toFloat()
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TrackyBodyText(text = "Total Calories")
-                    TrackyBodyText(
-                        text = "${totalCalories.toInt()} kcal",
-                        color = TrackyTokens.Colors.BrandPrimary
-                    )
-                }
-                TrackyDivider()
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TrackyBodySmall(text = "Carbs")
-                    TrackyBodySmall(text = "${totalCarbs.toInt()}g")
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TrackyBodySmall(text = "Protein")
-                    TrackyBodySmall(text = "${totalProtein.toInt()}g")
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TrackyBodySmall(text = "Fat")
-                    TrackyBodySmall(text = "${totalFat.toInt()}g")
-                }
-            }
-
-            TrackySheetActions(
-                primaryText = "Save Changes",
-                onPrimaryClick = {
+                // Totals Summary
+                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+                TrackyCard {
                     val totalCalories = editedItems.map { it.calories }.sum()
                     val totalCarbs = editedItems.map { it.carbsG.toDouble() }.sum().toFloat()
                     val totalProtein = editedItems.map { it.proteinG.toDouble() }.sum().toFloat()
                     val totalFat = editedItems.map { it.fatG.toDouble() }.sum().toFloat()
 
-                    val normalizedItems = editedItems.map { it.copy(name = sentenceCase(it.name)) }
-
-                    onSave(
-                        entry.copy(
-                            items = normalizedItems,
-                            totalCalories = totalCalories,
-                            totalCarbsG = totalCarbs,
-                            totalProteinG = totalProtein,
-                            totalFatG = totalFat,
-                            updatedAt = System.currentTimeMillis()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TrackyBodyText(text = "Total Calories")
+                        TrackyBodyText(
+                            text = "${totalCalories.toInt()} kcal",
+                            color = TrackyTokens.Colors.BrandPrimary
                         )
+                    }
+                    TrackyDivider()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TrackyBodySmall(text = "Carbs")
+                        TrackyBodySmall(text = "${totalCarbs.toInt()}g")
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TrackyBodySmall(text = "Protein")
+                        TrackyBodySmall(text = "${totalProtein.toInt()}g")
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TrackyBodySmall(text = "Fat")
+                        TrackyBodySmall(text = "${totalFat.toInt()}g")
+                    }
+                }
+
+                TrackySheetActions(
+                    primaryText = "Save Changes",
+                    onPrimaryClick = {
+                        val totalCalories = editedItems.map { it.calories }.sum()
+                        val totalCarbs = editedItems.map { it.carbsG.toDouble() }.sum().toFloat()
+                        val totalProtein = editedItems.map { it.proteinG.toDouble() }.sum().toFloat()
+                        val totalFat = editedItems.map { it.fatG.toDouble() }.sum().toFloat()
+
+                        val normalizedItems = editedItems.map { it.copy(name = sentenceCase(it.name)) }
+
+                        onSave(
+                            entry.copy(
+                                items = normalizedItems,
+                                totalCalories = totalCalories,
+                                totalCarbsG = totalCarbs,
+                                totalProteinG = totalProtein,
+                                totalFatG = totalFat,
+                                updatedAt = System.currentTimeMillis()
+                            )
+                        )
+                    },
+                    primaryEnabled = editedItems.isNotEmpty()
+                )
+            } else {
+                // EDIT ITEM VIEW
+                val index = editingItemIndex!!
+                val itemToEdit = editedItems[index]
+                
+                // Header with Back Button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = TrackyTokens.Spacing.M),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { editingItemIndex = null }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = TrackyColors.TextPrimary
+                        )
+                    }
+                    Text(
+                        text = "Edit Item",
+                        style = TrackyTypography.HeadlineMedium,
+                        color = TrackyColors.TextPrimary
                     )
-                },
-                primaryEnabled = editedItems.isNotEmpty()
-            )
+                }
+
+                EditFoodItemCard(
+                    item = itemToEdit,
+                    onItemChanged = { updatedItem ->
+                        // Update buffer immediately for local state in this view
+                        val newList = editedItems.toMutableList()
+                        newList[index] = updatedItem
+                        editedItems = newList
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.L))
+                
+                TrackySheetActions(
+                    primaryText = "Confirm Update",
+                    onPrimaryClick = {
+                        // Just return to list, changes are already in 'editedItems' via callback above
+                        editingItemIndex = null
+                    }
+                )
+            }
         }
     }
 }
@@ -350,12 +417,15 @@ fun EditExerciseEntrySheet(
     onSave: (ExerciseEntry) -> Unit
 ) {
     var editedItems by remember { mutableStateOf(entry.items.toMutableList()) }
+    var editingItemIndex by remember { mutableStateOf<Int?>(null) }
 
     fun sentenceCase(text: String): String {
-        val trimmed = text.trim()
-        if (trimmed.isEmpty()) return trimmed
-        val lower = trimmed.lowercase()
-        return lower.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        return text.toTitleCase()
+    }
+
+    // Handle back press within sheet
+    BackHandler(enabled = editingItemIndex != null) {
+        editingItemIndex = null
     }
 
     TrackyBottomSheet(
@@ -365,101 +435,150 @@ fun EditExerciseEntrySheet(
         Column(
             modifier = Modifier.verticalScroll(rememberScrollState())
         ) {
-            // Custom Title Row with Badge
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = TrackyTokens.Spacing.M),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                androidx.compose.material3.Text(
-                    text = "Edit Exercise Entry",
-                    style = com.tracky.app.ui.theme.TrackyTypography.HeadlineMedium,
-                    color = TrackyColors.TextPrimary
-                )
-                
-                if (editedItems.any { it.isManual }) {
-                    TrackyBadge(
-                        text = "Manual Edit",
-                        style = BadgeStyle.WARNING,
-                        compact = true
+            if (editingItemIndex == null) {
+                // LIST VIEW
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = TrackyTokens.Spacing.M),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Edit Exercise Entry",
+                        style = TrackyTypography.HeadlineMedium,
+                        color = TrackyColors.TextPrimary
                     )
+                    
+                    if (editedItems.any { it.isManual }) {
+                        TrackyBadge(
+                            text = "Manual Edit",
+                            style = BadgeStyle.WARNING,
+                            compact = true
+                        )
+                    }
                 }
-            }
 
-            // Edit each item
-            editedItems.forEachIndexed { index, item ->
-                EditExerciseItemCard(
-                    item = item,
-                    userWeightKg = entry.userWeightKg,
-                    onItemChanged = { updatedItem ->
-                        editedItems = editedItems.toMutableList().apply {
-                            this[index] = updatedItem
+                editedItems.forEachIndexed { index, item ->
+                    TrackyCard(
+                        modifier = Modifier.clickable { editingItemIndex = index }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(TrackyTokens.Spacing.S)
+                        ) {
+                            TrackyBodyText(
+                                text = "${index + 1}.",
+                                color = TrackyColors.TextSecondary
+                            )
+                            TrackyBodyText(text = item.activityName)
                         }
                     }
-                )
-                if (index < editedItems.size - 1) {
-                    Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
+                    if (index < editedItems.size - 1) {
+                        Spacer(modifier = Modifier.height(TrackyTokens.Spacing.S))
+                    }
                 }
-            }
 
-            // Totals
-            Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
-            TrackyCard {
-                val totalCalories = editedItems.map { it.caloriesBurned }.sum()
-                val totalDuration = editedItems.sumOf { it.durationMinutes }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TrackyBodyText(text = "Total Duration")
-                    TrackyBodyText(text = "$totalDuration min")
-                }
-                TrackyDivider()
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TrackyBodyText(text = "Total Calories Burned")
-                    TrackyBodyText(
-                        text = "${totalCalories.toInt()} kcal",
-                        color = TrackyTokens.Colors.Success
-                    )
-                }
-            }
-
-            TrackySheetActions(
-                primaryText = "Save Changes",
-                onPrimaryClick = {
+                // Totals
+                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.M))
+                TrackyCard {
                     val totalCalories = editedItems.map { it.caloriesBurned }.sum()
                     val totalDuration = editedItems.sumOf { it.durationMinutes }
 
-                    val normalizedItems = editedItems.map { 
-                        it.copy(activityName = sentenceCase(it.activityName)) 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TrackyBodyText(text = "Total Duration")
+                        TrackyBodyText(text = "$totalDuration min")
                     }
-
-                    onSave(
-                        entry.copy(
-                            items = normalizedItems,
-                            totalCalories = totalCalories,
-                            totalDurationMinutes = totalDuration,
-                            updatedAt = System.currentTimeMillis()
+                    TrackyDivider()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TrackyBodyText(text = "Total Calories Burned")
+                        TrackyBodyText(
+                            text = "${totalCalories.toInt()} kcal",
+                            color = TrackyTokens.Colors.Success
                         )
+                    }
+                }
+
+                TrackySheetActions(
+                    primaryText = "Save Changes",
+                    onPrimaryClick = {
+                        val totalCalories = editedItems.map { it.caloriesBurned }.sum()
+                        val totalDuration = editedItems.sumOf { it.durationMinutes }
+
+                        val normalizedItems = editedItems.map { 
+                            it.copy(activityName = sentenceCase(it.activityName)) 
+                        }
+
+                        onSave(
+                            entry.copy(
+                                items = normalizedItems,
+                                totalCalories = totalCalories,
+                                totalDurationMinutes = totalDuration,
+                                updatedAt = System.currentTimeMillis()
+                            )
+                        )
+                    },
+                    primaryEnabled = editedItems.isNotEmpty()
+                )
+            } else {
+                // EDIT ITEM VIEW
+                val index = editingItemIndex!!
+                val itemToEdit = editedItems[index]
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = TrackyTokens.Spacing.M),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { editingItemIndex = null }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = TrackyColors.TextPrimary
+                        )
+                    }
+                    Text(
+                        text = "Edit Item",
+                        style = TrackyTypography.HeadlineMedium,
+                        color = TrackyColors.TextPrimary
                     )
-                },
-                primaryEnabled = editedItems.isNotEmpty()
-            )
+                }
+
+                EditExerciseItemCard(
+                    item = itemToEdit,
+                    userWeightKg = entry.userWeightKg,
+                    onItemChanged = { updatedItem ->
+                        val newList = editedItems.toMutableList()
+                        newList[index] = updatedItem
+                        editedItems = newList
+                    }
+                )
+                
+                Spacer(modifier = Modifier.height(TrackyTokens.Spacing.L))
+                
+                TrackySheetActions(
+                    primaryText = "Confirm Update",
+                    onPrimaryClick = {
+                        editingItemIndex = null
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun EditExerciseItemCard(
-    item: com.tracky.app.domain.model.ExerciseItem,
+    item: ExerciseItem,
     userWeightKg: Float,
-    onItemChanged: (com.tracky.app.domain.model.ExerciseItem) -> Unit
+    onItemChanged: (ExerciseItem) -> Unit
 ) {
     // Keep local buffer for text fields to allow typing invalid numbers temporarily
     var durationText by remember { mutableStateOf(item.durationMinutes.toString()) }

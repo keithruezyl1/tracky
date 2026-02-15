@@ -72,6 +72,10 @@ class HomeViewModel @Inject constructor(
     private var backupExerciseEntry: ExerciseEntry? = null
     private var isReanalyzing = false
 
+    private fun sanitizeInput(text: String): String {
+        return text.trim().replace("\\s+".toRegex(), " ")
+    }
+
     fun dismissSuccessOverlay() {
         showSuccessOverlay.value = false
     }
@@ -378,6 +382,7 @@ class HomeViewModel @Inject constructor(
      * Log food or exercise using AI auto-detection
      */
     fun logAutoFromText(text: String, reanalyzeId: Long? = null, reanalyzeType: String? = null) {
+        val sanitizedText = sanitizeInput(text)
         viewModelScope.launch {
             if (reanalyzeId != null && reanalyzeType != null) {
                 isReanalyzing = true
@@ -408,14 +413,15 @@ class HomeViewModel @Inject constructor(
 
             // Append user chat message
             val date = _selectedDate.value.toString()
-            chatRepository.addUserTextMessage(date, if (isReanalyzing) "Re-analyzing: $text" else text)
+            chatRepository.addUserTextMessage(date, if (isReanalyzing) "Re-analyzing: $sanitizedText" else sanitizedText)
 
             _uiState.update { it.copy(inputText = "") }
-            draftLoggingInteractor.draftAutoFromText(text, _selectedDate.value)
+            draftLoggingInteractor.draftAutoFromText(sanitizedText, _selectedDate.value)
         }
     }
 
     fun logFoodFromText(text: String) {
+        val sanitizedText = sanitizeInput(text)
         viewModelScope.launch {
              isReanalyzing = false
              preferencesDataStore.setReanalyzingState(null, null)
@@ -423,10 +429,10 @@ class HomeViewModel @Inject constructor(
              backupExerciseEntry = null
             // Append user chat message
             val date = _selectedDate.value.toString()
-            chatRepository.addUserTextMessage(date, text)
+            chatRepository.addUserTextMessage(date, sanitizedText)
 
             _uiState.update { it.copy(inputText = "") }
-            draftLoggingInteractor.draftFoodFromText(text, _selectedDate.value)
+            draftLoggingInteractor.draftFoodFromText(sanitizedText, _selectedDate.value)
         }
     }
 
@@ -446,13 +452,14 @@ class HomeViewModel @Inject constructor(
     }
 
     fun logExerciseFromText(text: String) {
+        val sanitizedText = sanitizeInput(text)
         viewModelScope.launch {
             // Append user chat message
             val date = _selectedDate.value.toString()
-            chatRepository.addUserTextMessage(date, text)
+            chatRepository.addUserTextMessage(date, sanitizedText)
 
             _uiState.update { it.copy(inputText = "") }
-            draftLoggingInteractor.draftExerciseFromText(text, _selectedDate.value)
+            draftLoggingInteractor.draftExerciseFromText(sanitizedText, _selectedDate.value)
         }
     }
 
@@ -599,11 +606,11 @@ class HomeViewModel @Inject constructor(
      * This will delete the old entry and create a new draft for the user to confirm
      */
     fun reanalyzeFoodEntry(foodEntryId: Long, newText: String) {
-        logAutoFromText(newText, foodEntryId, "food")
+        logAutoFromText(sanitizeInput(newText), foodEntryId, "food")
     }
 
     fun reanalyzeExerciseEntry(exerciseId: Long, newText: String) {
-        logAutoFromText(newText, exerciseId, "exercise")
+        logAutoFromText(sanitizeInput(newText), exerciseId, "exercise")
     }
 
     fun toggleSidebar() {
@@ -611,11 +618,22 @@ class HomeViewModel @Inject constructor(
     }
 
     fun addToDraft(text: String, isFood: Boolean) {
+        val sanitizedText = sanitizeInput(text)
         viewModelScope.launch {
             if (isFood) {
-                draftLoggingInteractor.addToFoodDraft(text)
+                draftLoggingInteractor.addToFoodDraft(sanitizedText)
             } else {
-                draftLoggingInteractor.addToExerciseDraft(text)
+                draftLoggingInteractor.addToExerciseDraft(sanitizedText)
+            }
+        }
+    }
+
+    fun addToDraftImage(imageBase64: String, isFood: Boolean) {
+        viewModelScope.launch {
+            if (isFood) {
+                draftLoggingInteractor.addToFoodDraftFromImage(imageBase64)
+            } else {
+                draftLoggingInteractor.addToExerciseDraftFromImage(imageBase64)
             }
         }
     }

@@ -158,9 +158,10 @@ Most calorie tracking apps require too many taps (search, servings, manual entry
 Tracky is a **clean, sleek** calorie & macro tracker with:
 
 * Chat-style logging (text or photo)
+* **Manual entry fallback** (full control over values)
 * Dataset-first nutrition/workout resolution
 * Clear 7-day dashboard + daily totals
-* Weight tracking + time range chart
+* Weight tracking + interactive time range chart
 * Transparent entry analysis (tap entry → full breakdown)
 
 ### 1.3 Target user
@@ -301,7 +302,7 @@ Remaining formula:
 
 Macros card:
 
-* carbs/protein/fat consumed vs target grams
+* circular progress indicators for carbs/protein/fat consumed vs target grams
 
 ### 4.4 Logging interface (chat-style)
 
@@ -324,6 +325,7 @@ Macros card:
 
   * confirm
   * edit
+  * re-analyze (async AI update on text edit)
   * cancel
 
 **FR-L3 Offline**
@@ -333,33 +335,31 @@ Macros card:
 
 ---
 
-## 5) Dataset-first AI pipeline (OpenAI integration)
+## 5) Retrieval-Driven AI Pipeline (The "Engine")
 
-### 5.1 Policy (hard rule)
+### 5.1 Core Philosophy: Retrieval > Generation
+1.  **Canonical First**: Never hallucinate. Always look up verified data first.
+2.  **Vector Search**: Use semantic search to find "close matches" if exact keys fail.
+3.  **AI Estimation**: Only used as a last resort fallback.
 
-1. local dataset
-2. AI-first fallback
-3. other online sources only if explicitly approved later
+### 5.2 The "Brain" (Canonical Registry)
+*   **Golden Key**: `brand|name|unit_class` (e.g., `coke|zero_sugar|liquid`).
+*   **Normalization**: Strict cleaning of inputs to prevent duplicates.
+*   **Storage**: Cloudflare KV (Registry) + Vectorize (Embeddings).
 
-### 5.2 OpenAI responsibilities
+### 5.3 Feedback Loop (The Flywheel)
+1.  **Confirm**: Boosts confidence score globally.
+2.  **Edit**: Forks the entry into a new Canonical or Variant.
+3.  **Dismiss**: Penalizes the confidence score.
 
-* parse text/photo into structured items
-* propose candidate dataset queries
-* generate analysis narrative **without inventing nutrition values**
+### 5.4 Plausibility Guardrails
+*   **Zero-Value Gate**: Rejects 0kcal items (unless water/diet soda).
+*   **Physics Check**: Validates `Calories ≈ (Carbs*4 + Protein*4 + Fat*9)`.
 
-### 5.3 Resolver responsibilities (deterministic)
-
-* match foods/exercises against local dataset via FTS
-* compute calories/macros deterministically
-* only call AI if dataset misses
-
-### 5.4 Provenance tracking (required)
-
-Each item stores:
-
-* source: dataset | ai_first | user_override
-* matched label/id
-* confidence
+### 5.5 Resolver Responsibilities
+*   **Extraction**: Identify metadata from text/image.
+*   **Retrieval**: KV Get -> Vector Search.
+*   **Estimation**: Fallback to LLM if retrieval fails.
 
 ---
 
@@ -399,6 +399,7 @@ Calories burned:
 
 * Edit entry
 * Adjust calories/macros (override)
+* **Manual Input**: Duration/Intensity (Low/Med/High) for exercise
 * Change date/time
 * Save entry template
 * Delete
@@ -445,6 +446,12 @@ Calories burned:
 
 * photos sent only for analysis
 * optional “store photos locally” setting
+
+### Premium UX
+
+* **Haptics**: Tactile feedback for interactions
+* **Sound Effects**: Subtle cues for success/actions
+* **Animations**: Smooth transitions throughout
 
 ### Accessibility
 

@@ -7,6 +7,7 @@ import com.tracky.app.data.repository.FoodsRepository;
 import com.tracky.app.data.repository.LoggingRepository;
 import com.tracky.app.data.repository.ProfileRepository;
 import com.tracky.app.data.repository.WeightRepository;
+import com.tracky.app.domain.logic.NutritionConflictDetector;
 import com.tracky.app.domain.resolver.CanonicalKeyGenerator;
 import com.tracky.app.ui.haptics.HapticManager;
 import com.tracky.app.ui.sound.SoundManager;
@@ -52,6 +53,8 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
 
   private final Provider<CanonicalKeyGenerator> canonicalKeyGeneratorProvider;
 
+  private final Provider<NutritionConflictDetector> nutritionConflictDetectorProvider;
+
   public EntryDetailViewModel_Factory(Provider<SavedStateHandle> savedStateHandleProvider,
       Provider<LoggingRepository> loggingRepositoryProvider,
       Provider<SavedEntryDao> savedEntryDaoProvider,
@@ -60,7 +63,8 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
       Provider<ProfileRepository> profileRepositoryProvider,
       Provider<WeightRepository> weightRepositoryProvider,
       Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider,
-      Provider<CanonicalKeyGenerator> canonicalKeyGeneratorProvider) {
+      Provider<CanonicalKeyGenerator> canonicalKeyGeneratorProvider,
+      Provider<NutritionConflictDetector> nutritionConflictDetectorProvider) {
     this.savedStateHandleProvider = savedStateHandleProvider;
     this.loggingRepositoryProvider = loggingRepositoryProvider;
     this.savedEntryDaoProvider = savedEntryDaoProvider;
@@ -71,11 +75,12 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
     this.soundManagerProvider = soundManagerProvider;
     this.hapticManagerProvider = hapticManagerProvider;
     this.canonicalKeyGeneratorProvider = canonicalKeyGeneratorProvider;
+    this.nutritionConflictDetectorProvider = nutritionConflictDetectorProvider;
   }
 
   @Override
   public EntryDetailViewModel get() {
-    return newInstance(savedStateHandleProvider.get(), loggingRepositoryProvider.get(), savedEntryDaoProvider.get(), foodsRepositoryProvider.get(), backendApiProvider.get(), profileRepositoryProvider.get(), weightRepositoryProvider.get(), soundManagerProvider.get(), hapticManagerProvider.get(), canonicalKeyGeneratorProvider.get());
+    return newInstance(savedStateHandleProvider.get(), loggingRepositoryProvider.get(), savedEntryDaoProvider.get(), foodsRepositoryProvider.get(), backendApiProvider.get(), profileRepositoryProvider.get(), weightRepositoryProvider.get(), soundManagerProvider.get(), hapticManagerProvider.get(), canonicalKeyGeneratorProvider.get(), nutritionConflictDetectorProvider.get());
   }
 
   public static EntryDetailViewModel_Factory create(
@@ -87,8 +92,9 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
       Provider<ProfileRepository> profileRepositoryProvider,
       Provider<WeightRepository> weightRepositoryProvider,
       Provider<SoundManager> soundManagerProvider, Provider<HapticManager> hapticManagerProvider,
-      Provider<CanonicalKeyGenerator> canonicalKeyGeneratorProvider) {
-    return new EntryDetailViewModel_Factory(savedStateHandleProvider, loggingRepositoryProvider, savedEntryDaoProvider, foodsRepositoryProvider, backendApiProvider, profileRepositoryProvider, weightRepositoryProvider, soundManagerProvider, hapticManagerProvider, canonicalKeyGeneratorProvider);
+      Provider<CanonicalKeyGenerator> canonicalKeyGeneratorProvider,
+      Provider<NutritionConflictDetector> nutritionConflictDetectorProvider) {
+    return new EntryDetailViewModel_Factory(savedStateHandleProvider, loggingRepositoryProvider, savedEntryDaoProvider, foodsRepositoryProvider, backendApiProvider, profileRepositoryProvider, weightRepositoryProvider, soundManagerProvider, hapticManagerProvider, canonicalKeyGeneratorProvider, nutritionConflictDetectorProvider);
   }
 
   public static EntryDetailViewModel newInstance(SavedStateHandle savedStateHandle,
@@ -96,7 +102,8 @@ public final class EntryDetailViewModel_Factory implements Factory<EntryDetailVi
       FoodsRepository foodsRepository, TrackyBackendApi backendApi,
       ProfileRepository profileRepository, WeightRepository weightRepository,
       SoundManager soundManager, HapticManager hapticManager,
-      CanonicalKeyGenerator canonicalKeyGenerator) {
-    return new EntryDetailViewModel(savedStateHandle, loggingRepository, savedEntryDao, foodsRepository, backendApi, profileRepository, weightRepository, soundManager, hapticManager, canonicalKeyGenerator);
+      CanonicalKeyGenerator canonicalKeyGenerator,
+      NutritionConflictDetector nutritionConflictDetector) {
+    return new EntryDetailViewModel(savedStateHandle, loggingRepository, savedEntryDao, foodsRepository, backendApi, profileRepository, weightRepository, soundManager, hapticManager, canonicalKeyGenerator, nutritionConflictDetector);
   }
 }

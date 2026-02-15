@@ -10,14 +10,18 @@
 
 ### 🍎 Effortless Logging
 - **Chat-Based Interface**: Log your meals and workouts just by texting naturally (e.g., "Ate a banana and 2 eggs").
-- **Visual Food Logging**: Snap a photo 📸 of your meal, and Tracky's AI will identify the food and estimate calories/macros automatically.
+- **Visual Food Logging**: Snap a photo 📸 of your meal. Tracky's **Retrieval-Driven AI** identifies food with precision using a verified canonical database—no more random guesses.
+- **Manual Control**: Full support for manual entry of calories, macros, duration, and intensity when you need precision.
 - **Auto-Detection**: The app automatically figures out if you're logging food, exercise, or just chatting.
 - **Smart Drafts**: Review and edit every entry before it's saved. You're always in control.
-- **Self-Learning Database**: The **Data Flywheel** recognizes your manual edits and prioritizes your personal history for future accuracy.
+- **Data Flywheel**: The system learns from every interaction. Your confirmed entries become the "Gold Standard" for future accuracy, creating a personalized and ever-improving database.
+- **Plausibility Guardrails**: Built-in physics checks ensure nutritional data makes mathematical sense (e.g., matching calories to [Carbs*4 + Protein*4 + Fat*9]).
 
 ### 📊 Smart Dashboard
-- **6-Day Strip**: Swipe through your week to track consistency.
+- **6-Day Strip**: Swipe through your week to track consistency with smooth sliding transitions.
 - **Live Progress**: Green/Red daily indicators and filling rings for Calories, Protein, Carbs, and Fat.
+- **Dynamic Messaging**: Calorie cards update with encouraging messages based on your progress.
+- **Premium Feel**: Experience rich haptics and sound effects as you interact.
 - **Quick Actions**: Edit daily goals on the fly.
 
 ### 🔍 Deep Insights & Control
