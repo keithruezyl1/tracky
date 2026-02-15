@@ -42,6 +42,7 @@ class UserPreferencesDataStore @Inject constructor(
         val STREAK_LAST_ANIMATED_DATE = stringPreferencesKey("streak_last_animated_date")
         val REANALYZING_ENTRY_ID = androidx.datastore.preferences.core.longPreferencesKey("reanalyzing_entry_id")
         val REANALYZING_ENTRY_TYPE = stringPreferencesKey("reanalyzing_entry_type")
+        val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -208,6 +209,20 @@ class UserPreferencesDataStore @Inject constructor(
     suspend fun setStreakLastAnimatedDate(date: String) {
         dataStore.edit { preferences ->
             preferences[Keys.STREAK_LAST_ANIMATED_DATE] = date
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Notifications Preference
+    // ─────────────────────────────────────────────────────────────────────────
+
+    val notificationsEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.NOTIFICATIONS_ENABLED] ?: true // Default to true
+    }
+
+    suspend fun setNotificationsEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[Keys.NOTIFICATIONS_ENABLED] = enabled
         }
     }
 

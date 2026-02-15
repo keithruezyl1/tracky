@@ -589,7 +589,15 @@ class HomeViewModel @Inject constructor(
     }
 
     fun clearError() {
-        _uiState.update { it.copy(error = null) }
+        _uiState.update { it.copy(error = null, isOffline = false) }
+    }
+
+    fun dismissOfflineOverlay() {
+        _uiState.update { it.copy(isOffline = false) }
+    }
+
+    fun toggleOffline(isOffline: Boolean) {
+        _uiState.update { it.copy(isOffline = isOffline) }
     }
 
     /**
@@ -658,7 +666,8 @@ data class HomeUiState(
     val streakInfo: com.tracky.app.domain.model.StreakInfo = com.tracky.app.domain.model.StreakInfo(),
     val shouldAnimateStreak: Boolean = false,
     val showStreakModal: Boolean = false,
-    val showSidebar: Boolean = false
+    val showSidebar: Boolean = false,
+    val isOffline: Boolean = false
 )
 
 enum class InputMode {

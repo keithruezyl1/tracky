@@ -54,6 +54,11 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update { it.copy(hapticsEnabled = enabled) }
                 }
             }
+            launch {
+                preferencesDataStore.notificationsEnabled.collect { enabled ->
+                    _uiState.update { it.copy(notificationsEnabled = enabled) }
+                }
+            }
         }
     }
 
@@ -78,6 +83,17 @@ class SettingsViewModel @Inject constructor(
     fun setHapticsEnabled(enabled: Boolean) {
         viewModelScope.launch {
             preferencesDataStore.setHapticsEnabled(enabled)
+        }
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean, context: android.content.Context) {
+        viewModelScope.launch {
+            preferencesDataStore.setNotificationsEnabled(enabled)
+            if (enabled) {
+                com.tracky.app.worker.NotificationScheduler.scheduleDailyReminders(context)
+            } else {
+                com.tracky.app.worker.NotificationScheduler.cancelAllNotifications(context)
+            }
         }
     }
 
@@ -116,6 +132,7 @@ data class SettingsUiState(
     val storePhotosLocally: Boolean = true,
     val darkModeEnabled: Boolean = false,
     val hapticsEnabled: Boolean = true,
+    val notificationsEnabled: Boolean = true,
     val showResetConfirmation: Boolean = false,
     val isResetting: Boolean = false
 )

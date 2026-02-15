@@ -177,6 +177,30 @@ fun SettingsScreen(
                         onCheckedChange = viewModel::setHapticsEnabled
                     )
                 }
+
+                TrackyDivider()
+
+                val context = androidx.compose.ui.platform.LocalContext.current
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = TrackyTokens.Spacing.XS),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        TrackyBodyText(text = "Notifications")
+                        TrackyBodySmall(
+                            text = "Receive daily meal reminders",
+                            color = TrackyColors.TextTertiary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(TrackyTokens.Spacing.M))
+                    TrackySwitch(
+                        checked = uiState.notificationsEnabled,
+                        onCheckedChange = { viewModel.setNotificationsEnabled(it, context) }
+                    )
+                }
             }
 
             // About section

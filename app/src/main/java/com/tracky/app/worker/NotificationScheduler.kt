@@ -12,14 +12,29 @@ import java.util.Calendar
 object NotificationScheduler {
 
     fun scheduleDailyReminders(context: Context) {
-        // Schedule Breakfast (7 AM)
-        scheduleAlarm(context, 7, 0, AlarmReceiver.TYPE_BREAKFAST, 1001)
+        // Schedule Breakfast (6 AM)
+        scheduleAlarm(context, 6, 0, AlarmReceiver.TYPE_BREAKFAST, 1001)
 
         // Schedule Lunch (12 PM)
         scheduleAlarm(context, 12, 0, AlarmReceiver.TYPE_LUNCH, 1002)
 
         // Schedule Dinner (6 PM)
         scheduleAlarm(context, 18, 0, AlarmReceiver.TYPE_DINNER, 1003)
+    }
+
+    fun cancelAllNotifications(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val ids = listOf(1001, 1002, 1003)
+        ids.forEach { id ->
+            val intent = Intent(context, AlarmReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                id,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+        }
     }
 
     private fun scheduleAlarm(

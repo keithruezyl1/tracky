@@ -14,6 +14,12 @@ import com.tracky.app.MainActivity
 import com.tracky.app.R
 import java.util.Calendar
 import kotlin.random.Random
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
 
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -21,8 +27,24 @@ class AlarmReceiver : BroadcastReceiver() {
         val type = intent.getStringExtra(KEY_TYPE) ?: return
         val notificationId = intent.getIntExtra(KEY_NOTIFICATION_ID, 0)
 
-        showNotification(context, type, notificationId)
-        scheduleNextAlarm(context, type, notificationId)
+        // Check if notifications are enabled
+        val pendingResult = goAsync()
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+        
+        scope.launch {
+            try {
+                val preferences = com.tracky.app.data.local.preferences.UserPreferencesDataStore(context)
+                preferences.notificationsEnabled.collect { enabled ->
+                    if (enabled) {
+                        showNotification(context, type, notificationId)
+                        scheduleNextAlarm(context, type, notificationId)
+                    }
+                    this@launch.cancel() // Stop collecting after one check
+                }
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     private fun showNotification(context: Context, type: String, notificationId: Int) {
@@ -47,9 +69,9 @@ class AlarmReceiver : BroadcastReceiver() {
         }
         val pendingIntent = PendingIntent.getActivity(
             context,
-            0,
+            notificationId, // Use notificationId for uniqueness
             intent,
-            PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val notification = NotificationCompat.Builder(context, channelId)
@@ -68,25 +90,25 @@ class AlarmReceiver : BroadcastReceiver() {
         return when (type) {
             TYPE_BREAKFAST -> {
                 val messages = listOf(
-                    "Review your breakfast" to "Don't forget to log your breakfast! It's the most important meal of the day.",
-                    "Morning fuel" to "Have you had breakfast yet? Log it now to keep track!",
-                    "Start right!" to "A good breakfast sets the tone for the day. Let's log it together!"
+                    "Rise and Shine! ☀️" to "Start your day with a healthy breakfast. Log it now to stay on track!",
+                    "Good Morning, Champion! 🏆" to "Fuel up for the day ahead. Don't forget to track your breakfast.",
+                    "Morning Energy Boost ⚡" to "A good breakfast sets the tone. Log it in seconds!"
                 )
                 messages.random()
             }
             TYPE_LUNCH -> {
                 val messages = listOf(
-                    "Lunch time!" to "Hope you're having a nutritious lunch. Log it in Tracky!",
-                    "Midday boost" to "Time to refuel! Don't forget to track your lunch.",
-                    "Stay energized" to "Keep your energy up with a good lunch. Log it now!"
+                    "It's Lunchtime! 🥗" to "Time to refuel! Record your lunch and keep your streak alive.",
+                    "Midday Fuel Stop ⛽" to "Taking a break? Log your meal to see how your macros look.",
+                    "Don't Skip a Beat 🎵" to "Enjoy your lunch and track it instantly in Tracky."
                 )
                 messages.random()
             }
             TYPE_DINNER -> {
                 val messages = listOf(
-                    "Dinner works" to "Wrapping up the day? Don't forget to log your dinner.",
-                    "Evening meal" to "Enjoy your dinner! Remember to track it for better insights.",
-                    "Daily wrap-up" to "Did you stick to your goals? Log your dinner and see!"
+                    "Dinner is Served 🍽️" to "Winding down? Finish your day strong by logging your dinner.",
+                    "Evening Wrap-Up 🌙" to "What's on the menu tonight? One tap to log your final meal.",
+                    "Close Your Rings 🎯" to "Last meal of the day! Log it now to complete your daily diary."
                 )
                 messages.random()
             }
@@ -115,7 +137,7 @@ class AlarmReceiver : BroadcastReceiver() {
             // But to correct drift, better to set explicit hour/minute.
             when (type) {
                 TYPE_BREAKFAST -> {
-                    set(Calendar.HOUR_OF_DAY, 7)
+                    set(Calendar.HOUR_OF_DAY, 6) // Updated to 6 AM
                     set(Calendar.MINUTE, 0)
                 }
                 TYPE_LUNCH -> {

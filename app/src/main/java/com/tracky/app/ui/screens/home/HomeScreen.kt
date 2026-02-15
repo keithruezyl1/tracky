@@ -204,7 +204,12 @@ fun HomeScreen(
     // Show error from uiState
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
+            if (error.contains("Unable to resolve host", ignoreCase = true) || 
+                error.contains("UnknownHostException", ignoreCase = true)) {
+                viewModel.toggleOffline(true)
+            } else {
+                snackbarHostState.showSnackbar(error)
+            }
             viewModel.clearError()
         }
     }
@@ -213,7 +218,12 @@ fun HomeScreen(
     LaunchedEffect(draftState) {
         if (draftState is DraftState.Error) {
             val error = (draftState as DraftState.Error).message
-            snackbarHostState.showSnackbar(error)
+            if (error.contains("Unable to resolve host", ignoreCase = true) || 
+                error.contains("UnknownHostException", ignoreCase = true)) {
+                viewModel.toggleOffline(true)
+            } else {
+                snackbarHostState.showSnackbar(error)
+            }
         }
         if (draftState is DraftState.FoodDraft || draftState is DraftState.ExerciseDraft) {
             viewModel.onDraftAppeared()
@@ -814,6 +824,12 @@ fun HomeScreen(
             SnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            // Offline Overlay
+            com.tracky.app.ui.components.OfflineOverlay(
+                visible = uiState.isOffline,
+                onDismiss = viewModel::dismissOfflineOverlay
             )
         }
     }
