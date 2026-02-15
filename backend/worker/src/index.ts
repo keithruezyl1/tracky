@@ -1523,7 +1523,7 @@ RULES:
     if (!result) return jsonResponse({ error: 'AI Error' }, 500);
 
     // 2. Deterministic Resolution for Food
-    const resolvedFood = (result.food_items || []).map((item: any) => {
+    const resolvedFood: ResolvedFoodItem[] = (result.food_items || []).map((item: any) => {
       // Map AI result to FoodMetadata item structure
       // Note: result.food_items already matches close enough, but ensure fields exist
       const metaItem = {
